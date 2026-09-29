@@ -39,6 +39,7 @@ export function createWorkspace(
     statuses: [],
     blocks: [],
     edgeOverrides: {},
+    edgeOverheadOverrides: {},
     attachments: [],
   };
 }

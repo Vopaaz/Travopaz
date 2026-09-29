@@ -11,6 +11,7 @@ import {
 } from './schema';
 import { ms } from './time';
 import { bounds, blockTitle } from './operations';
+import { ScenarioContexts, type Scenario } from './scenarioContexts';
 import {
   sameLocation,
   hasLocation,
@@ -51,6 +52,7 @@ export type Edge = {
   modeKnown: boolean;
   route: RouteResult;
   overhead: number;
+  overheadOverridden: boolean;
   effectiveMinutes: number | null;
   departure: number | null;
   arrival: number | null;
@@ -88,33 +90,28 @@ type Node = {
   candidate?: Candidate;
   owner?: string;
 };
-type Path = { blocks: ConcreteBlock[]; variants: Record<string, string>; context: string };
+type Path = { blocks: ConcreteBlock[]; variants: Scenario };
 type Ambiguity = { optionId: string; statusIds: string[]; start: number; end: number };
 
 function* paths(
   w: Workspace,
   index = 0,
   blocks: ConcreteBlock[] = [],
-  variants: Record<string, string> = {},
-  names: string[] = [],
+  variants: Scenario = {},
 ): Generator<Path> {
   if (index === w.blocks.length) {
-    yield { blocks, variants, context: names.join(' / ') };
+    yield { blocks, variants };
     return;
   }
   const block = w.blocks[index];
-  if (block.kind !== 'option') yield* paths(w, index + 1, [...blocks, block], variants, names);
-  else if (!block.variants.length)
-    yield* paths(w, index + 1, blocks, variants, [...names, `${block.title}（空）`]);
+  if (block.kind !== 'option') yield* paths(w, index + 1, [...blocks, block], variants);
+  else if (!block.variants.length) yield* paths(w, index + 1, blocks, variants);
   else
     for (const variant of block.variants)
-      yield* paths(
-        w,
-        index + 1,
-        [...blocks, ...variant.blocks],
-        { ...variants, [block.id]: variant.id },
-        [...names, `${block.title} · ${variant.title}`],
-      );
+      yield* paths(w, index + 1, [...blocks, ...variant.blocks], {
+        ...variants,
+        [block.id]: variant.id,
+      });
 }
 
 /** Pure derivation: this function never mutates canonical data or placements. */
@@ -128,6 +125,19 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
   const owners = new Map<string, string>(),
     restLocations: Record<string, Location[]> = {};
   const options = w.blocks.filter((b): b is OptionBlock => b.kind === 'option');
+  const contexts = new ScenarioContexts(options);
+  const recordResult = <T extends object>(
+    map: Map<string, T>,
+    key: string,
+    result: T,
+    scenario: Scenario,
+  ): T => {
+    const entry = map.get(key) ?? result;
+    Object.assign(entry, result);
+    map.set(key, entry);
+    contexts.record(entry, scenario);
+    return entry;
+  };
   for (const option of options)
     for (const variant of option.variants)
       for (const b of variant.blocks) owners.set(b.id, option.id);
@@ -135,7 +145,7 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
     code: string,
     message: string,
     targetIds: string[],
-    context = '',
+    scenario?: Scenario,
     severity: Issue['severity'] = 'error',
   ) => {
     const targets = [
@@ -145,18 +155,16 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
       ]),
     ].sort();
     const id = `${code}:${targets.join('|')}:${message}`;
-    const existing = issueMap.get(id);
-    if (existing) {
-      if (context && !existing.contexts.includes(context)) existing.contexts.push(context);
-    } else
-      issueMap.set(id, {
-        id,
-        severity,
-        code,
-        message,
-        targetIds: targets,
-        contexts: context ? [context] : [],
-      });
+    const issue = issueMap.get(id) ?? {
+      id,
+      severity,
+      code,
+      message,
+      targetIds: targets,
+      contexts: [],
+    };
+    issueMap.set(id, issue);
+    if (scenario) contexts.record(issue, scenario);
   };
   const ambiguities: Ambiguity[] = [];
   // An Option occupies its derived envelope in the parent Timeline.
@@ -204,7 +212,7 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
           'variant_empty',
           `「${v.title}」没有项目，无法确定完整路径。`,
           [option.id],
-          '',
+          undefined,
           'warning',
         );
   }
@@ -227,11 +235,17 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
         addIssue('attachment_missing', '项目引用了不存在的附件记录。', [owner.id]);
   for (const status of w.statuses)
     if (!hasLocation(status.location))
-      addIssue('status_location', `「${status.title}」缺少状态地点。`, [status.id], '', 'warning');
+      addIssue(
+        'status_location',
+        `「${status.title}」缺少状态地点。`,
+        [status.id],
+        undefined,
+        'warning',
+      );
   let scenarioCount = 0;
   for (const path of paths(w)) {
     scenarioCount++;
-    const context = path.context;
+    const scenario = path.variants;
     const ordered = [...path.blocks].sort(
       (a, b) => ms(a.start) - ms(b.start) || a.id.localeCompare(b.id),
     );
@@ -254,7 +268,7 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
         ends = group.filter((g) => g.candidate.role === 'end');
       const targets = [statusId, ...group.map((g) => g.block.id)];
       if (!status) {
-        addIssue('status_missing', 'Boundary 引用了不存在的状态。', targets, context);
+        addIssue('status_missing', 'Boundary 引用了不存在的状态。', targets, scenario);
         continue;
       }
       if (starts.length !== 1 || ends.length !== 1) {
@@ -262,14 +276,14 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
           'boundary_pair',
           `「${status.title}」需要恰好一个开始 Boundary 和一个结束 Boundary（当前 ${starts.length} / ${ends.length}）。`,
           targets,
-          context,
+          scenario,
         );
         continue;
       }
       const start = ms(starts[0].block.end),
         end = ms(ends[0].block.start);
       if (start >= end || ms(starts[0].block.start) >= start || end >= ms(ends[0].block.end)) {
-        addIssue('status_order', `「${status.title}」状态区间或办理时间无效。`, targets, context);
+        addIssue('status_order', `「${status.title}」状态区间或办理时间无效。`, targets, scenario);
         continue;
       }
       const ambiguity = ambiguities.filter((a) => a.statusIds.includes(statusId));
@@ -280,11 +294,11 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
         end,
         startId: starts[0].block.id,
         endId: ends[0].block.id,
-        context,
+        context: '',
         ambiguousAfter: ambiguity.length ? Math.min(...ambiguity.map((a) => a.start)) : null,
       };
       intervals.push(interval);
-      statusMap.set(interval.id, interval);
+      recordResult(statusMap, interval.id, interval, scenario);
     }
     const covering = (kind: Status['kind'], start: number, end: number, owner?: string) =>
       intervals.filter(
@@ -305,7 +319,7 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
             'status_overlap',
             `「${a.status.title}」与「${b.status.title}」状态重叠，无法唯一确定当前状态。`,
             [a.status.id, b.status.id, a.startId, b.startId],
-            context,
+            scenario,
           );
       }
     const nodes: Node[] = ordered.map((block) => {
@@ -315,7 +329,7 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
         owner = owners.get(block.id);
       const title = blockTitle(w, block);
       if (end <= start)
-        addIssue('duration_positive', 'Placement 必须有正数 duration。', [block.id], context);
+        addIssue('duration_positive', 'Placement 必须有正数 duration。', [block.id], scenario);
       let origin = emptyLocation(),
         destination = emptyLocation();
       if (block.kind === 'hotelRest') {
@@ -325,7 +339,7 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
             'hotel_rest',
             '酒店休息的整个 Placement 必须由同一个唯一有效酒店状态覆盖。',
             [block.id],
-            context,
+            scenario,
           );
         else {
           origin = destination = hotels[0].status.location;
@@ -334,7 +348,7 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
           restLocations[block.id] = locations;
         }
       } else if (!c)
-        addIssue('candidate_missing', 'Placement 引用了不存在的 Candidate。', [block.id], context);
+        addIssue('candidate_missing', 'Placement 引用了不存在的 Candidate。', [block.id], scenario);
       else if (c.kind === 'transport') {
         origin = c.origin;
         destination = c.destination;
@@ -343,14 +357,14 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
             'scheduled_mismatch',
             'Placement 与 Scheduled time 不一致；Scheduled time 未被修改。',
             [block.id, c.id],
-            context,
+            scenario,
           );
         if (ms(c.arrival) <= ms(c.departure))
           addIssue(
             'schedule_order',
             'Scheduled Arrival 必须晚于 Departure。',
             [block.id, c.id],
-            context,
+            scenario,
           );
       } else {
         origin = destination = c.location;
@@ -361,14 +375,14 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
               'duration_min',
               `时长不足：至少需要 ${c.constraints.minMinutes} 分钟。`,
               [block.id, c.id],
-              context,
+              scenario,
             );
           if (c.constraints.maxMinutes !== null && minutes > c.constraints.maxMinutes)
             addIssue(
               'duration_max',
               `时长超限：最多允许 ${c.constraints.maxMinutes} 分钟。`,
               [block.id, c.id],
-              context,
+              scenario,
             );
           const ranges = c.constraints.intervals;
           if (
@@ -385,12 +399,12 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
               'time_constraint',
               'Placement 不满足任何一个合法时间区间。',
               [block.id, c.id],
-              context,
+              scenario,
             );
         }
       }
       if (!hasLocation(origin) || !hasLocation(destination))
-        addIssue('location_missing', '缺少地点，相关路线无法计算。', [block.id], context);
+        addIssue('location_missing', '缺少地点，相关路线无法计算。', [block.id], scenario);
       return {
         id: block.id,
         title,
@@ -413,13 +427,16 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
             'overlap',
             `「${blockTitle(w, a)}」与「${blockTitle(w, b)}」Placement 重叠。`,
             [a.id, b.id],
-            context,
+            scenario,
           );
       }
     const makeEdge = (a: Node, b: Node, anchor: 'forward' | 'backward' = 'forward'): Edge => {
       const key = `${a.id}>${b.id}`,
         override = w.edgeOverrides[key],
+        overheadOverride = w.edgeOverheadOverrides[key],
         owner = a.owner === b.owner ? a.owner : undefined;
+      const overheadFor = (mode: Mode) =>
+        overheadOverride ?? (mode === 'NONE' ? 0 : config.overhead[mode]);
       const probe = anchor === 'forward' ? a.end : b.start;
       const ambiguousCar = ambiguities.filter(
         (a) =>
@@ -428,20 +445,26 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
           a.statusIds.some((id) => w.statuses.find((s) => s.id === id)?.kind === 'rentalCar'),
       );
       let carAtProbe = covering('rentalCar', probe, probe, owner).length === 1;
-      let mode: Mode = override ?? (carAtProbe ? 'DRIVE' : 'WALK');
+      const samePlace = sameLocation(a.destination, b.origin);
+      let mode: Mode = override ?? (samePlace ? 'NONE' : carAtProbe ? 'DRIVE' : 'WALK');
       let modeKnown = true;
       const read = (m: Mode): RouteResult =>
-        sameLocation(a.destination, b.origin)
-          ? { status: 'ok', minutes: 0, distanceMeters: 0, source: 'same-location' }
+        m === 'NONE' || samePlace
+          ? {
+              status: 'ok',
+              minutes: 0,
+              distanceMeters: 0,
+              source: samePlace ? 'same-location' : 'manual-none',
+            }
           : !hasLocation(a.destination) || !hasLocation(b.origin)
             ? unknownRoute('缺少起点或终点')
             : config.routingProvider === 'unavailable'
               ? unknownRoute('路线查询已在设置中关闭')
               : lookup(a.destination, b.origin, m);
-      if (!override && carAtProbe) {
+      if (!override && mode !== 'NONE' && carAtProbe) {
         const driving = read('DRIVE');
         if (driving.status === 'ok') {
-          const elapsed = (driving.minutes + config.overhead.DRIVE) * 60000;
+          const elapsed = (driving.minutes + overheadFor('DRIVE')) * 60000;
           carAtProbe =
             covering(
               'rentalCar',
@@ -452,15 +475,15 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
           if (!carAtProbe) mode = 'WALK';
         }
       }
-      if (!override && !carAtProbe) {
+      if (!override && mode !== 'NONE' && !carAtProbe) {
         const walking = read('WALK');
         if (walking.status === 'ok')
           mode = walking.minutes <= config.walkingThreshold ? 'WALK' : 'RIDESHARE';
         else modeKnown = false;
       }
-      if (!override && ambiguousCar.length) modeKnown = false;
+      if (!override && mode !== 'NONE' && ambiguousCar.length) modeKnown = false;
       const route = read(mode),
-        overhead = config.overhead[mode];
+        overhead = overheadFor(mode);
       const effectiveMinutes = route.status === 'ok' && modeKnown ? route.minutes + overhead : null;
       const departure =
         anchor === 'forward'
@@ -488,6 +511,7 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
         modeKnown,
         route,
         overhead,
+        overheadOverridden: overheadOverride !== undefined,
         effectiveMinutes,
         departure,
         arrival,
@@ -498,12 +522,19 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
           b.id.startsWith('overnight:')
             ? null
             : (b.start - a.end) / 60000,
-        context,
+        context: '',
         optionIds: [...new Set([a.owner, b.owner].filter(Boolean))] as string[],
       };
       const targets = [edge.id, a.id, b.id, ...edge.optionIds];
+      if (mode === 'NONE' && !samePlace)
+        addIssue(
+          'no_movement_location',
+          '“无移动”要求前后项目位于同一地址；请修改地点或交通方式。',
+          targets,
+          scenario,
+        );
       if (route.status !== 'ok')
-        addIssue('route_unknown', route.message, targets, context, 'warning');
+        addIssue('route_unknown', route.message, targets, scenario, 'warning');
       if (!modeKnown)
         addIssue(
           'mode_unknown',
@@ -511,7 +542,7 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
             ? 'Option 对外租车状态未知，默认交通方式无法确认。'
             : '步行耗时未知，默认交通方式尚无法确认。',
           [...targets, ...ambiguousCar.map((a) => a.optionId)],
-          context,
+          scenario,
           'warning',
         );
       if (
@@ -523,7 +554,7 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
           'travel_short',
           `路程与额外耗时共需 ${Math.ceil(effectiveMinutes)} 分钟，当前仅有 ${Math.floor(edge.availableMinutes)} 分钟。`,
           targets,
-          context,
+          scenario,
         );
       if (
         mode === 'DRIVE' &&
@@ -531,11 +562,15 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
           ? covering('rentalCar', departure, arrival, owner).length !== 1
           : !carAtProbe)
       )
-        addIssue('drive_without_car', '驾驶路段未被唯一有效的租车状态完整覆盖。', targets, context);
+        addIssue(
+          'drive_without_car',
+          '驾驶路段未被唯一有效的租车状态完整覆盖。',
+          targets,
+          scenario,
+        );
       // Same endpoint pair can have different results in different Option contexts.
       const storageKey = JSON.stringify([key, mode, departure, arrival, effectiveMinutes]);
-      edgeMap.set(storageKey, edge);
-      return edge;
+      return recordResult(edgeMap, storageKey, edge, scenario);
     };
     const breaks = [...w.trip.overnightBreaks].sort((a, b) => ms(a.time) - ms(b.time));
     const hotelForBreak = new Map<string, StatusInterval>();
@@ -547,11 +582,11 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
           'break_overlap',
           'Overnight Break Point 与实际项目冲突，请修改或删除该 Break Point。',
           [br.id, b.id],
-          context,
+          scenario,
         );
       const hotels = covering('hotel', time, time);
       if (hotels.length !== 1)
-        addIssue('lodging_missing', '此住宿检查点没有唯一有效的酒店覆盖。', [br.id], context);
+        addIssue('lodging_missing', '此住宿检查点没有唯一有效的酒店覆盖。', [br.id], scenario);
       else if (!crossing.length) hotelForBreak.set(br.id, hotels[0]);
     }
     for (let i = 0; i < nodes.length - 1; i++) {
@@ -577,16 +612,21 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
           outgoing = makeEdge(node, b, 'backward');
         const start = incoming.arrival,
           end = outgoing.departure;
-        derivedMap.set(`${id}:${start}:${end}`, {
-          id,
-          kind: 'overnight',
-          title: hotel.status.title,
-          location: hotel.status.location,
-          start,
-          end,
-          anchor: ms(br.time),
-          context,
-        });
+        recordResult(
+          derivedMap,
+          `${id}:${start}:${end}`,
+          {
+            id,
+            kind: 'overnight',
+            title: hotel.status.title,
+            location: hotel.status.location,
+            start,
+            end,
+            anchor: ms(br.time),
+            context: '',
+          },
+          scenario,
+        );
         if (
           start !== null &&
           end !== null &&
@@ -596,7 +636,7 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
             'overnight_short',
             '往返酒店的路线与住宿检查点不相容，无法形成有效休息区间。',
             [br.id, id, a.id, b.id],
-            context,
+            scenario,
           );
       } else makeEdge(a, b);
     }
@@ -621,26 +661,36 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
       };
       const incoming = makeEdge(start, first, 'backward'),
         outgoing = makeEdge(last, end);
-      derivedMap.set(`trip-start:${incoming.departure}`, {
-        id: 'trip-start',
-        kind: 'start',
-        title: '必须出发',
-        location: w.trip.startLocation,
-        start: incoming.departure,
-        end: incoming.departure,
-        anchor: first.start,
-        context,
-      });
-      derivedMap.set(`trip-end:${outgoing.arrival}`, {
-        id: 'trip-end',
-        kind: 'end',
-        title: '预计到达',
-        location: w.trip.endLocation,
-        start: outgoing.arrival,
-        end: outgoing.arrival,
-        anchor: last.end,
-        context,
-      });
+      recordResult(
+        derivedMap,
+        `trip-start:${incoming.departure}`,
+        {
+          id: 'trip-start',
+          kind: 'start',
+          title: '必须出发',
+          location: w.trip.startLocation,
+          start: incoming.departure,
+          end: incoming.departure,
+          anchor: first.start,
+          context: '',
+        },
+        scenario,
+      );
+      recordResult(
+        derivedMap,
+        `trip-end:${outgoing.arrival}`,
+        {
+          id: 'trip-end',
+          kind: 'end',
+          title: '预计到达',
+          location: w.trip.endLocation,
+          start: outgoing.arrival,
+          end: outgoing.arrival,
+          anchor: last.end,
+          context: '',
+        },
+        scenario,
+      );
     }
   }
   const issues = [...issueMap.values()];
@@ -653,6 +703,9 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
         [option.id],
       );
   }
+  for (const issue of issueMap.values()) issue.contexts = contexts.describe([issue]);
+  for (const result of [...edgeMap.values(), ...statusMap.values(), ...derivedMap.values()])
+    result.context = contexts.describe([result]).join('；');
   const allDerived = [...derivedMap.values()];
   const endpoints: DerivedBlock[] = [];
   for (const kind of ['start', 'end'] as const) {
@@ -666,10 +719,7 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
       ...alternatives[0],
       start: time,
       end: time,
-      context: alternatives
-        .map((b) => b.context)
-        .filter(Boolean)
-        .join('；'),
+      context: contexts.describe(alternatives.filter((b) => b.start === time)).join('；'),
     });
   }
   return {

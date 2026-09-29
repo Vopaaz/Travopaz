@@ -33,7 +33,7 @@ npm start
 5. 酒店／租车的开始、结束 Boundary 都需要安排到 Timeline，才形成有效状态。状态从开始手续的 **end** 到结束手续的 **start**。
 6. “添加”菜单创建 Option 或酒店休息；Option 内可加入已有 Candidate。内部事件决定外框，外框不能 Resize；拖动 Option 会移动所有 Variant。删除方案表示放弃，剩一个时可解除包装。
 7. 旅行设置管理起终点、显示范围、时区和住宿检查点。住宿检查点与实际项目相交时报错；红眼航班等无需住宿时，手动删除相应点。
-8. 点击路线可覆盖为 WALK／DRIVE／RIDESHARE，也可恢复默认推导。所有错误都只提示，不阻止编辑。
+8. 点击路线可覆盖为无移动（NONE）／WALK／DRIVE／RIDESHARE，并单独设置该路段的额外耗时（buffer）。留空使用对应交通方式的旅行默认值，填写 0 则不加额外耗时。同址默认无移动，路线耗时为 0、buffer 默认 0，但也可自定义；异址手动选择无移动会报冲突。所有错误都只提示，不阻止编辑。
 
 按钮布局、键盘快捷键与更多说明也在右上角 `?` 中。
 
@@ -48,12 +48,12 @@ GOOGLE_MAPS_API_KEY=你的Key
 PORT=5173
 ```
 
-Key 只由本地 Node 服务／Electron 主进程读取，不打包进浏览器，不写入 Workspace。驾驶使用 `TRAFFIC_UNAWARE`；打车使用驾驶路线加独立 overhead。路线结果为可丢弃的会话缓存。
+Key 只由本地 Node 服务／Electron 主进程读取，不打包进浏览器，不写入 Workspace。驾驶使用 `TRAFFIC_UNAWARE`；打车使用驾驶路线加独立 overhead。成功路线按起终地址和交通方式缓存 14 天，重启后可复用；修改时间不改变缓存键。失败结果仅在内存中保留 30 秒。缓存是可重新生成的数据，详见 [路线缓存说明及 Google 使用限制](docs/GOOGLE_MAPS_SETUP.md#查询语义与故障)。
 
 ## 保存、附件与导出
 
 - **Browser**：自动保存到当前浏览器 IndexedDB。“最近的浏览器工作区”可切换旅行。清除浏览器网站数据会删除本机副本，请用 Workspace ZIP 备份。
-- **Workspace 导出／导入**：ZIP 中的 `workspace.json` + `attachments/` 可完整恢复编辑状态。也支持无附件的 canonical JSON 导入。附件加入时立即复制，不依赖原文件位置。
+- **Workspace 导出／导入**：ZIP 包含 `workspace.json`、`attachments/` 和 `route-cache.json`。缓存只随工作区备份，不加入人类或 AI Context 导出；导入不会延长 14 天有效期。旧 ZIP 和无附件的 canonical JSON 仍可导入。附件加入时立即复制，不依赖原文件位置。
 - **人类行程**：ZIP 内有独立 HTML 和相对引用的附件。解压打开 `行程.html` 即可使用，也可通过浏览器打印为 PDF。
 - **AI 背景**：分别下载明文 `itinerary-context.json` 与使用说明；需要的附件可单独下载。核心信息不要求解压。导出保留所有方案、未知路线和一致性问题。
 
@@ -70,6 +70,7 @@ npm run electron
 ```text
 my-trip/
   workspace.json
+  route-cache.json
   attachments/
     <attachment-id>
 ```

@@ -36,6 +36,7 @@ import { placeCandidate } from '../domain/factory';
 import type { Derived, DerivedBlock, Edge } from '../domain/derive';
 import { session } from '../storage/session';
 import type { Focus } from './types';
+import { modeLabel } from '../domain/routing';
 
 const OPTION_HEADER_SPACE = 25;
 const ENDPOINT_HEIGHT = 30;
@@ -952,20 +953,20 @@ function TravelEdges({
         title={`${edge.fromTitle} → ${edge.toTitle}\n路线 ${formatDuration(edge.route.minutes)} + 额外 ${edge.overhead} 分钟\n${edge.context}`}
       >
         <span>
-          {edge.mode === 'WALK' ? <Footprints size={12} /> : <Car size={12} />}
-          {edge.modeKnown
-            ? edge.mode === 'WALK'
-              ? '步行'
-              : edge.mode === 'DRIVE'
-                ? '驾车'
-                : '打车'
-            : '方式待确认'}
+          {edge.mode === 'NONE' ? (
+            <MapPin size={12} />
+          ) : edge.mode === 'WALK' ? (
+            <Footprints size={12} />
+          ) : (
+            <Car size={12} />
+          )}
+          {edge.modeKnown ? modeLabel[edge.mode] : '方式待确认'}
           {error > 0 && <AlertTriangle size={12} />}
         </span>
         <small>
           {formatDuration(edge.route.minutes)}
           {edge.overhead ? ` + ${edge.overhead} 分` : ''}
-          {edge.overridden ? ' · 手动' : ''}
+          {edge.overridden || edge.overheadOverridden ? ' · 手动' : ''}
         </small>
       </button>
     );

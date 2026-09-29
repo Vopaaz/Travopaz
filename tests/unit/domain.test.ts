@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DateTime } from 'luxon';
 import { createWorkspace, placeCandidate } from '../../src/domain/factory';
 import { derive } from '../../src/domain/derive';
@@ -15,6 +15,7 @@ import {
 } from '../../src/domain/schema';
 import { at, fromLocal, ms, shiftTime, daysBetween } from '../../src/domain/time';
 import type { RouteLookup } from '../../src/domain/routing';
+import { issueContextsWorkspace } from '../fixtures/issueContexts';
 
 const zone = 'Asia/Tokyo';
 const t = (hours: number) =>
@@ -340,6 +341,241 @@ describe('Option 完整路径', () => {
     o.variants.pop();
     unwrapOption(w, o.id);
     expect(w.blocks[0]).toEqual(b);
+  });
+});
+describe('每条路线的额外耗时', () => {
+  it('默认继承旅行配置，覆盖独立于交通方式，显式 0 与留空不同', () => {
+    const w = workspace(),
+      a = activity(w, 'A', 9, 10),
+      b = activity(w, 'B', 11, 12),
+      key = `${a.id}>${b.id}`;
+    w.globalConfig.overhead.WALK = 3;
+    w.trip.config.overhead = { WALK: 7, DRIVE: 11, RIDESHARE: 17 };
+    const edge = () => derive(w, route).edges.find((e) => e.key === key)!;
+    expect(edge()).toMatchObject({ overhead: 7, effectiveMinutes: 17, overheadOverridden: false });
+    w.edgeOverheadOverrides[key] = 0;
+    expect(edge()).toMatchObject({ overhead: 0, effectiveMinutes: 10, overheadOverridden: true });
+    w.edgeOverheadOverrides[key] = 12.5;
+    w.edgeOverrides[key] = 'RIDESHARE';
+    expect(edge()).toMatchObject({ mode: 'RIDESHARE', overhead: 12.5, effectiveMinutes: 22.5 });
+    delete w.edgeOverheadOverrides[key];
+    expect(edge()).toMatchObject({
+      mode: 'RIDESHARE',
+      overhead: 17,
+      effectiveMinutes: 27,
+      overheadOverridden: false,
+    });
+    expect(derive(w, route).edges.find((e) => e.fromId === 'trip-start')?.overhead).toBe(7);
+  });
+  it('影响路段冲突、抵达时间及必须出发时间，未知路线仍然未知', () => {
+    const w = workspace(),
+      a = activity(w, 'A', 9, 10),
+      b = activity(w, 'B', 10.25, 11),
+      key = `${a.id}>${b.id}`;
+    w.edgeOverheadOverrides[key] = 10;
+    w.edgeOverheadOverrides[`trip-start>${a.id}`] = 30;
+    const d = derive(w, route);
+    expect(d.edges.find((e) => e.key === key)?.arrival).toBe(ms(t(10)) + 20 * 60000);
+    expect(
+      d.issues.some((i) => i.code === 'travel_short' && i.targetIds.includes(`edge:${key}`)),
+    ).toBe(true);
+    expect(d.blocks.find((b) => b.kind === 'start')?.start).toBe(ms(t(9)) - 40 * 60000);
+    expect(derive(w).edges.find((e) => e.key === key)?.effectiveMinutes).toBeNull();
+  });
+  it('默认驾车可行性和手动驾车检查均使用该路段的 buffer', () => {
+    const w = workspace(),
+      car = status(w, 'rentalCar', 8, 10),
+      a = activity(w, '景点', 9, 9.5),
+      key = `${a.id}>${car.dropoff.id}`;
+    w.globalConfig.overhead.DRIVE = 25;
+    expect(derive(w, route).edges.find((e) => e.key === key)?.mode).toBe('WALK');
+    w.edgeOverheadOverrides[key] = 0;
+    expect(derive(w, route).edges.find((e) => e.key === key)?.mode).toBe('DRIVE');
+    w.edgeOverrides[key] = 'DRIVE';
+    w.edgeOverheadOverrides[key] = 30;
+    expect(
+      derive(w, route).issues.some(
+        (i) => i.code === 'drive_without_car' && i.targetIds.includes(`edge:${key}`),
+      ),
+    ).toBe(true);
+  });
+  it('Option 内部的路段可单独覆盖，并影响对应方案的检查', () => {
+    const w = workspace(),
+      a = activity(w, 'A', 9, 10),
+      b = activity(w, 'B', 10.25, 11),
+      o = wrapOption(w, [a.id, b.id]);
+    const c = activity(w, 'C', 9, 10),
+      d = activity(w, 'D', 10.25, 11);
+    w.blocks = w.blocks.filter((block) => block.id !== c.id && block.id !== d.id);
+    o.variants.push({ id: uid(), title: '另一方案', blocks: [c, d] });
+    w.edgeOverheadOverrides[`${a.id}>${b.id}`] = 10;
+    const result = derive(w, route);
+    expect(result.edges.find((e) => e.key === `${a.id}>${b.id}`)?.effectiveMinutes).toBe(20);
+    expect(result.edges.find((e) => e.key === `${c.id}>${d.id}`)?.effectiveMinutes).toBe(10);
+    expect(
+      result.issues.some((i) => i.code === 'option_worst_case' && i.targetIds.includes(o.id)),
+    ).toBe(true);
+  });
+  it('无移动允许单独 buffer，仍不查询路线；未设置时为 0', () => {
+    const w = workspace(),
+      a = activity(w, '同址', 9, 10),
+      b = activity(w, '同址', 10.25, 11),
+      key = `${a.id}>${b.id}`;
+    w.trip.startLocation = w.trip.endLocation = location('同址');
+    const lookup = vi.fn(route);
+    w.edgeOverheadOverrides[key] = 20;
+    const d = derive(w, lookup);
+    expect(d.edges.find((e) => e.key === key)).toMatchObject({
+      mode: 'NONE',
+      route: { minutes: 0 },
+      overhead: 20,
+      effectiveMinutes: 20,
+      overheadOverridden: true,
+    });
+    expect(
+      d.issues.some((i) => i.code === 'travel_short' && i.targetIds.includes(`edge:${key}`)),
+    ).toBe(true);
+    expect(lookup).not.toHaveBeenCalled();
+    delete w.edgeOverheadOverrides[key];
+    expect(derive(w, lookup).edges.find((e) => e.key === key)?.effectiveMinutes).toBe(0);
+  });
+  it('旧工作区默认没有路段覆盖，拒绝负数和无限耗时', () => {
+    const { edgeOverheadOverrides, ...legacy } = workspace();
+    expect(parseWorkspace(legacy).edgeOverheadOverrides).toEqual({});
+    for (const value of [-1, Infinity, NaN])
+      expect(() =>
+        parseWorkspace({ ...legacy, edgeOverheadOverrides: { 'A>B': value } }),
+      ).toThrow();
+  });
+});
+describe('无移动', () => {
+  it('同址优先推导无移动，不加任何 overhead，无需路线 API 或有效租车状态', () => {
+    const w = workspace();
+    const a = activity(w, '同址活动 A', 9, 10),
+      b = activity(w, '同址活动 B', 10, 11);
+    for (const c of w.candidates) if (c.kind === 'activity') c.location.address = '同一地址';
+    w.trip.startLocation = location('同一地址');
+    w.trip.endLocation = location('同一地址');
+    w.globalConfig.overhead = { WALK: 7, DRIVE: 20, RIDESHARE: 30 };
+    w.globalConfig.routingProvider = 'unavailable';
+    const lookup = vi.fn(route),
+      d = derive(w, lookup);
+    expect(lookup).not.toHaveBeenCalled();
+    expect(
+      d.edges.every((e) => e.mode === 'NONE' && e.overhead === 0 && e.effectiveMinutes === 0),
+    ).toBe(true);
+    expect(d.edges.find((e) => e.fromId === a.id && e.toId === b.id)?.route.minutes).toBe(0);
+    expect(d.issues).toHaveLength(0);
+  });
+  it('手动无移动保留并持久化；异址或空地点报错，不伪装成有效同址', () => {
+    const w = workspace(),
+      a = activity(w, 'A', 9, 10),
+      b = activity(w, 'B', 11, 12),
+      key = `${a.id}>${b.id}`;
+    w.edgeOverrides[key] = 'NONE';
+    expect(parseWorkspace(w).edgeOverrides[key]).toBe('NONE');
+    const lookup = vi.fn(route),
+      d = derive(w, lookup),
+      edge = d.edges.find((e) => e.key === key)!;
+    expect(edge.effectiveMinutes).toBe(0);
+    expect(edge.overhead).toBe(0);
+    expect(
+      d.issues.some((i) => i.code === 'no_movement_location' && i.targetIds.includes(edge.id)),
+    ).toBe(true);
+    expect(lookup.mock.calls.some(([from, to]) => from.name === 'A' && to.name === 'B')).toBe(
+      false,
+    );
+    for (const c of w.candidates) if (c.kind === 'activity') c.location = emptyLocation();
+    expect(codes(w)).toContain('no_movement_location');
+  });
+  it('租车期间同址仍默认无移动，手动交通方式继续优先于默认值', () => {
+    const w = workspace();
+    status(w, 'rentalCar', 8, 17);
+    const a = activity(w, '景点', 10, 11),
+      b = activity(w, '景点', 11, 12),
+      key = `${a.id}>${b.id}`;
+    expect(derive(w, route).edges.find((e) => e.key === key)?.mode).toBe('NONE');
+    w.edgeOverrides[key] = 'DRIVE';
+    expect(derive(w, route).edges.find((e) => e.key === key)?.mode).toBe('DRIVE');
+  });
+});
+describe('冲突与路线的相关方案', () => {
+  it('共同路段只显示一次冲突，不附带之后 40 种无关的完整方案组合', () => {
+    const w = issueContextsWorkspace();
+    const before = JSON.stringify(w);
+    const d = derive(w, () => ({
+      status: 'ok',
+      minutes: 5.5,
+      distanceMeters: 800,
+      source: 'test',
+    }));
+    const edge = d.edges.find((e) => e.key === 'airport>costco')!;
+    const issues = d.issues.filter((i) => i.targetIds.includes(edge.id));
+    expect(d.scenarioCount).toBe(40);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toBe('路程与额外耗时共需 16 分钟，当前仅有 15 分钟。');
+    expect(issues[0].contexts).toEqual([]);
+    expect(edge.context).toBe('');
+    expect(d.blocks.find((b) => b.kind === 'start')?.context).toBe('');
+    expect(JSON.stringify(w)).toBe(before);
+  });
+
+  it('方案专属的进出路线保留相关方案，但不展开其他独立 Option', () => {
+    const w = issueContextsWorkspace();
+    const d = derive(w, (origin, destination) => ({
+      status: 'ok',
+      minutes: destination.name === '午餐候选地点 1' ? 3000 : 10,
+      distanceMeters: 800,
+      source: 'test',
+    }));
+    const edge = d.edges.find((e) => e.key === 'costco>choice-0-0')!;
+    const issue = d.issues.find((i) => i.code === 'travel_short' && i.targetIds.includes(edge.id))!;
+    expect(issue.contexts).toEqual(['午餐候选 · 方案 1']);
+    expect(edge.context).toBe('午餐候选 · 方案 1');
+  });
+
+  it('主时间轴的状态冲突仍能指出影响它的上游方案，端点只标注决定其时间的方案', () => {
+    const w = workspace();
+    const hotel = status(w, 'hotel', 14, 34);
+    const checkIn = wrapOption(w, [hotel.pickup.id]);
+    checkIn.title = '入住时间';
+    checkIn.variants[0].title = '早入住';
+    checkIn.variants.push({
+      id: uid(),
+      title: '晚入住',
+      blocks: [{ ...hotel.pickup, id: uid(), start: t(16), end: t(16.5) }],
+    });
+    const rest = {
+      id: uid(),
+      kind: 'hotelRest' as const,
+      title: '休息',
+      start: t(15),
+      end: t(15.5),
+      metadata: emptyMetadata(),
+    };
+    w.blocks.push(rest);
+    const a = activity(w, '后一天 A', 40, 41),
+      b = activity(w, '后一天 B', 40, 41);
+    w.blocks = w.blocks.filter((block) => block.id !== b.id);
+    const future = wrapOption(w, [a.id]);
+    future.variants.push({ id: uid(), title: 'B', blocks: [b] });
+    const d = derive(w, route);
+    expect(
+      d.issues.find((i) => i.code === 'hotel_rest' && i.targetIds.includes(rest.id))?.contexts,
+    ).toEqual(['入住时间 · 晚入住']);
+    expect(d.statuses.map((s) => s.context).sort()).toEqual([
+      '入住时间 · 早入住',
+      '入住时间 · 晚入住',
+    ]);
+    // Late check-in leaves the first rest's location unknown, so departure is unknown too.
+    expect(d.blocks.find((block) => block.kind === 'start')?.start).toBeNull();
+    expect(d.blocks.find((block) => block.kind === 'start')?.context).toBe('入住时间 · 晚入住');
+    expect(d.blocks.find((block) => block.kind === 'end')?.context).toBe('');
+    rest.start = t(17);
+    rest.end = t(17.5);
+    const knownDeparture = derive(w, route).blocks.find((block) => block.kind === 'start');
+    expect(knownDeparture?.start).toBe(ms(t(14)) - 10 * 60000);
+    expect(knownDeparture?.context).toBe('入住时间 · 早入住');
   });
 });
 describe('时区与 schema', () => {

@@ -2,11 +2,20 @@ import { createDemo } from '../domain/factory';
 import { parseWorkspace, uid, type Workspace, type Attachment } from '../domain/schema';
 import * as browser from './browser';
 import type { DiskSnapshot } from './bridge';
+import {
+  emptyRouteCache,
+  parseRouteCache,
+  type RouteCache,
+  type RouteCacheEntry,
+} from '../domain/routeCache';
 
 type Snapshot = {
   workspace: Workspace;
   loading: boolean;
   saving: boolean;
+  cacheSaving: boolean;
+  routeCache: RouteCache;
+  routeCacheEpoch: number;
   error: string | null;
   notice: string | null;
   directory: string | null;
@@ -18,6 +27,9 @@ export class WorkspaceSession {
     workspace: createDemo(),
     loading: true,
     saving: false,
+    cacheSaving: false,
+    routeCache: emptyRouteCache(),
+    routeCacheEpoch: 0,
     error: null,
     notice: null,
     directory: null,
@@ -69,7 +81,13 @@ export class WorkspaceSession {
         return;
       }
       const saved = await browser.loadActive();
-      this.emit({ workspace: saved ?? this.state.workspace, loading: false });
+      const routeCache = saved ? await browser.loadBrowserRouteCache(saved.id) : emptyRouteCache();
+      this.emit({
+        workspace: saved ?? this.state.workspace,
+        routeCache,
+        routeCacheEpoch: this.state.routeCacheEpoch + 1,
+        loading: false,
+      });
       if (!saved) this.persist();
     } catch (e) {
       this.emit({ loading: false, error: `加载失败：${String(e)}` });
@@ -88,6 +106,9 @@ export class WorkspaceSession {
       error: null,
       notice,
       saving: false,
+      cacheSaving: false,
+      routeCache: parseRouteCache(snapshot.routeCache),
+      routeCacheEpoch: this.state.routeCacheEpoch + 1,
     });
   }
   edit(mutator: (draft: Workspace) => void) {
@@ -140,33 +161,104 @@ export class WorkspaceSession {
   async flush() {
     await this.queue;
   }
-  async replaceBrowser(workspace: Workspace, blobs = new Map<string, Blob>()) {
-    await this.flush();
-    for (const [path, blob] of blobs) await browser.putBlob(workspace.id, path, blob);
-    await browser.saveBrowser(workspace);
-    // Desktop must remember this switch too, or a previous disk workspace wins on the next launch.
-    await window.desktop?.useBrowser();
-    this.epoch++;
-    this.blocked = false;
-    this.past = [];
-    this.future = [];
-    this.emit({ workspace, directory: null, error: null, notice: null, saving: false });
+  recordRoutes(epoch: number, entries: RouteCacheEntry[]) {
+    if (epoch !== this.state.routeCacheEpoch || !entries.length) return;
+    const routeCache = parseRouteCache({
+      version: 1,
+      entries: [...this.state.routeCache.entries, ...entries],
+    });
+    this.emit({ routeCache });
+    this.persistRouteCache();
+  }
+  clearRouteCache() {
+    this.emit({ routeCache: emptyRouteCache(), routeCacheEpoch: this.state.routeCacheEpoch + 1 });
+    this.persistRouteCache();
+  }
+  private persistRouteCache() {
+    const { routeCache, routeCacheEpoch, workspace, directory } = this.state;
+    const workspaceEpoch = this.epoch;
+    this.emit({ cacheSaving: true });
+    this.queue = this.queue.then(async () => {
+      // Finish queued writes before switching workspaces, even after new queries are paused.
+      if (workspaceEpoch !== this.epoch) return;
+      try {
+        if (directory && window.desktop) await window.desktop.saveRouteCache(routeCache, directory);
+        else await browser.saveBrowserRouteCache(workspace.id, routeCache);
+        if (routeCacheEpoch === this.state.routeCacheEpoch && routeCache === this.state.routeCache)
+          this.emit({ cacheSaving: false });
+      } catch (error) {
+        if (routeCacheEpoch === this.state.routeCacheEpoch)
+          this.emit({ cacheSaving: false, error: `路线缓存保存失败：${String(error)}` });
+      }
+    });
+  }
+  private pauseRouteRequests() {
+    this.emit({
+      loading: true,
+      cacheSaving: false,
+      routeCacheEpoch: this.state.routeCacheEpoch + 1,
+    });
+  }
+  async replaceBrowser(workspace: Workspace, blobs = new Map<string, Blob>(), cache?: RouteCache) {
+    this.pauseRouteRequests();
+    try {
+      await this.flush();
+      const routeCache =
+        cache === undefined
+          ? await browser.loadBrowserRouteCache(workspace.id)
+          : parseRouteCache(cache);
+      for (const [path, blob] of blobs) await browser.putBlob(workspace.id, path, blob);
+      await browser.saveBrowser(workspace);
+      await browser.saveBrowserRouteCache(workspace.id, routeCache);
+      // Desktop must remember this switch too, or a previous disk workspace wins on the next launch.
+      await window.desktop?.useBrowser();
+      this.epoch++;
+      this.blocked = false;
+      this.past = [];
+      this.future = [];
+      this.emit({
+        workspace,
+        routeCache,
+        routeCacheEpoch: this.state.routeCacheEpoch + 1,
+        directory: null,
+        error: null,
+        notice: null,
+        saving: false,
+        cacheSaving: false,
+      });
+    } finally {
+      this.emit({ loading: false });
+    }
   }
   async openDesktop() {
-    await this.flush();
-    const snapshot = await window.desktop?.open();
-    if (snapshot) this.acceptDisk(snapshot);
+    this.pauseRouteRequests();
+    try {
+      await this.flush();
+      const snapshot = await window.desktop?.open();
+      if (snapshot) this.acceptDisk(snapshot);
+    } finally {
+      this.emit({ loading: false });
+    }
   }
   async saveAsDesktop() {
-    await this.flush();
-    const attachments = [];
-    for (const a of this.state.workspace.attachments)
-      attachments.push({
-        path: a.path,
-        data: Array.from(new Uint8Array(await (await this.readAttachment(a.path)).arrayBuffer())),
-      });
-    const snapshot = await window.desktop?.create(this.state.workspace, attachments);
-    if (snapshot) this.acceptDisk(snapshot);
+    this.pauseRouteRequests();
+    try {
+      await this.flush();
+      const attachments = [];
+      for (const a of this.state.workspace.attachments)
+        attachments.push({
+          path: a.path,
+          data: Array.from(new Uint8Array(await (await this.readAttachment(a.path)).arrayBuffer())),
+        });
+      const snapshot = await window.desktop?.create(
+        this.state.workspace,
+        attachments,
+        this.state.routeCache,
+      );
+      if (snapshot) this.acceptDisk(snapshot);
+    } finally {
+      this.emit({ loading: false });
+    }
   }
   async addAttachment(file: File): Promise<Attachment> {
     const id = uid();

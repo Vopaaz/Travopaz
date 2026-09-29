@@ -1381,8 +1381,20 @@
         "enum": [
           "WALK",
           "DRIVE",
-          "RIDESHARE"
+          "RIDESHARE",
+          "NONE"
         ]
+      }
+    },
+    "edgeOverheadOverrides": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
       }
     },
     "attachments": {

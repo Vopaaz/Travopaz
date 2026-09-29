@@ -3,7 +3,7 @@ import { DateTime } from 'luxon';
 import type { Block, Metadata, Workspace } from '../domain/schema';
 import { blockTitle, bounds } from '../domain/operations';
 import { formatTime, daysBetween, ms } from '../domain/time';
-import { navigationUrl } from '../domain/routing';
+import { navigationUrl, modeLabel } from '../domain/routing';
 import type { Derived } from '../domain/derive';
 
 function itineraryDays(w: Workspace, zone: string) {
@@ -170,7 +170,7 @@ export async function humanItinerary(
     )
     .join(
       '',
-    )}<h2>交通路线与出发／住宿提示</h2>${d.blocks.map((b) => `<p>${escape(b.title)} · ${escape(b.location.name)}：${b.start === null ? '时间未知' : formatTime(b.start, zone, 'MM/dd HH:mm')}${b.kind === 'overnight' ? ` → ${b.end === null ? '未知' : formatTime(b.end, zone, 'MM/dd HH:mm')}` : ''}</p>`).join('')}${d.edges.map((e) => `<p>${escape(e.fromTitle)} → ${escape(e.toTitle)}：${escape(e.mode)}，总耗时 ${e.effectiveMinutes === null ? '未知' : `${Math.ceil(e.effectiveMinutes)} 分钟`}${e.context ? ` · ${escape(e.context)}` : ''}</p>`).join('')}<h2>一致性检查</h2>${d.issues.map((i) => `<p class="warning">[${escape(i.severity)}] ${escape(i.message)} ${escape(i.contexts.join('；'))}</p>`).join('')}<small>由 Travopaz 导出。此文档可独立阅读，可使用浏览器打印为 PDF；附件位于同目录 attachments 内。</small></html>`;
+    )}<h2>交通路线与出发／住宿提示</h2>${d.blocks.map((b) => `<p>${escape(b.title)} · ${escape(b.location.name)}：${b.start === null ? '时间未知' : formatTime(b.start, zone, 'MM/dd HH:mm')}${b.kind === 'overnight' ? ` → ${b.end === null ? '未知' : formatTime(b.end, zone, 'MM/dd HH:mm')}` : ''}</p>`).join('')}${d.edges.map((e) => `<p>${escape(e.fromTitle)} → ${escape(e.toTitle)}：${escape(modeLabel[e.mode])}，总耗时 ${e.effectiveMinutes === null ? '未知' : `${Math.ceil(e.effectiveMinutes)} 分钟`}${e.context ? ` · ${escape(e.context)}` : ''}</p>`).join('')}<h2>一致性检查</h2>${d.issues.map((i) => `<p class="warning">[${escape(i.severity)}] ${escape(i.message)} ${escape(i.contexts.join('；'))}</p>`).join('')}<small>由 Travopaz 导出。此文档可独立阅读，可使用浏览器打印为 PDF；附件位于同目录 attachments 内。</small></html>`;
   zip.file('行程.html', html);
   return zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
 }

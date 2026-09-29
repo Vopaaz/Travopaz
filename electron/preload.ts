@@ -4,9 +4,11 @@ const bridge: DesktopBridge = {
   open: () => ipcRenderer.invoke('workspace:open'),
   reopen: () => ipcRenderer.invoke('workspace:reopen'),
   useBrowser: () => ipcRenderer.invoke('workspace:use-browser'),
-  create: (workspace, attachments) =>
-    ipcRenderer.invoke('workspace:create', workspace, attachments),
+  create: (workspace, attachments, routeCache) =>
+    ipcRenderer.invoke('workspace:create', workspace, attachments, routeCache),
   save: (workspace, revision) => ipcRenderer.invoke('workspace:save', workspace, revision),
+  saveRouteCache: (routeCache, directory) =>
+    ipcRenderer.invoke('workspace:route-cache', routeCache, directory),
   putAttachment: (path, data) => ipcRenderer.invoke('attachment:put', path, data),
   getAttachment: (path) => ipcRenderer.invoke('attachment:get', path),
   subscribe: (callback) => {

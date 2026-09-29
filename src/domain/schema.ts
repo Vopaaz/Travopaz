@@ -103,7 +103,7 @@ export const optionSchema = z
   })
   .strict();
 export const blockSchema = z.union([concreteBlockSchema, optionSchema]);
-export const modeSchema = z.enum(['WALK', 'DRIVE', 'RIDESHARE']);
+export const modeSchema = z.enum(['WALK', 'DRIVE', 'RIDESHARE', 'NONE']);
 export const configSchema = z
   .object({
     home: locationSchema,
@@ -154,6 +154,7 @@ export const workspaceSchema = z
     ),
     blocks: z.array(blockSchema),
     edgeOverrides: z.record(z.string(), modeSchema),
+    edgeOverheadOverrides: z.record(z.string(), z.number().nonnegative()).default({}),
     attachments: z.array(
       z
         .object({

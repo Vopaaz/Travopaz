@@ -26,6 +26,7 @@
   "statuses": [],
   "blocks": [],
   "edgeOverrides": {},
+  "edgeOverheadOverrides": {},
   "attachments": []
 }
 ```
@@ -90,9 +91,11 @@ transport 的 departure / arrival 是真实 scheduled time，preBuffer / postBuf
 
 交通前一条 Edge 需要在 `departure - preBuffer` 前抵达，后一条从 `arrival + postBuffer` 后出发。Placement 不一致会报错，检查仍使用 scheduled buffered interval 外沿。Activity 没有通用 pre/post buffer。
 
-Travel Edge 由相邻具体项目自动生成，不可写入 canonical，不是 Candidate。唯一可写内容是 `edgeOverrides`：key 为 `fromId>toId`，value 必须为 WALK、DRIVE 或 RIDESHARE。删除该 key 恢复默认推导。不要写 AUTO，也不要写人工 route duration。
+Travel Edge 由相邻具体项目自动生成，不可写入 canonical，不是 Candidate。交通方式覆盖保存在 `edgeOverrides`：key 为 `fromId>toId`，value 必须为 NONE、WALK、DRIVE 或 RIDESHARE。删除该 key 恢复默认推导。不要写 AUTO，也不要写人工 route duration。
 
-默认优先在有有效租车状态的完整路段使用 DRIVE；否则查询步行耗时，与 walkingThreshold 比较决定 WALK／RIDESHARE。未知查询结果为 null，不能当 0。相同已知地址的零路程是明确的同地特例。普通 overhead 属于 Edge。
+额外耗时覆盖保存在 `edgeOverheadOverrides`，同样使用 `fromId>toId` 作为 key，value 是以分钟为单位的非负有限数（可为小数）。省略此字段兼容旧工作区，等价于 `{}`。例如 `{"block-a>block-b":15}` 表示该路段单独加 15 分钟。删除该 key 恢复当前交通方式的旅行默认值；显式 0 表示不加 buffer。覆盖值与交通方式独立，切换方式时保留，也适用于 Option 内部路段、旅行起终点和 Overnight 进出路线。buffer 影响总耗时、出发／抵达时间、状态覆盖与冲突检查，不改写原始 API 路线耗时，也不改变路线缓存键。
+
+默认首先对相同已知地址使用 NONE（无移动），路线耗时固定为 0、overhead 默认 0，不调用路线 API；NONE 同样允许 `edgeOverheadOverrides`。否则在有有效租车状态的完整路段使用 DRIVE，或查询步行耗时，与 walkingThreshold 比较决定 WALK／RIDESHARE。手动 NONE 仅同址时一致，异址或地点缺失时报告冲突。地点相同使用应用现有规则：比较去掉首尾空格的地址，无地址时比较地点名称；两个空地点不算同址。未知查询结果为 null，不能当 0。普通 overhead 属于 Edge。
 
 特殊端点 ID：`trip-start`、`trip-end`；Overnight ID：`overnight:<breakPointId>:<statusId>`。普通边使用持久 Block ID；相邻关系消失时 override 可以成为未使用记录，重新出现时仍可恢复。
 
@@ -131,5 +134,7 @@ globalConfig 保存 Home、默认交通 buffers、各 mode overhead、walkingThr
 attachments 数组只保存 `{id,name,mime,path,size}`。path 必须是 `attachments/<安全ID>`，不可使用绝对路径、`..` 或外部文件引用。实际二进制文件必须同步复制到 Workspace。metadata.attachmentIds 负责对象与文件关联；Undo 后未引用的附件仍保留以便 Redo。
 
 Canonical 不保存：Travel Edge、route cache、issue、status interval、Overnight、Trip Start/End 派生块、displayTimezone 的转换结果。Workspace ZIP 用于恢复编辑状态；人类 HTML 与 AI context JSON 是最终只读行程，不用于重新导入。
+
+可选的 `route-cache.json` 与 canonical 文件并列保存，仅随 Workspace ZIP 导入导出。其格式为 `{version:1,entries:[{origin,destination,mode,fetchedAt,result:{status:"ok",minutes,distanceMeters,source}}]}`；`mode` 为 WALK 或 DRIVE（打车共用 DRIVE），`fetchedAt` 为实际获取结果时的 Unix 毫秒时间，14 天后失效。不要人工修改、更新其时间戳或把缓存合并到 `workspace.json`。损坏或缺失的缓存不影响行程恢复。
 
 当前首版 schemaVersion 为 1，load / validate / save 入口已统一；未知版本明确拒绝，绝不猜测字段或偷偷修复。未来升级必须在 migrateWorkspace 中增加显式转换后再接受对应版本。

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { RouteResult } from '../src/domain/routing';
+import { ROUTE_CACHE_TTL, ROUTE_FAILURE_TTL } from '../src/domain/routeCache';
 
 const querySchema = z
   .object({
@@ -12,6 +13,7 @@ type CacheEntry = { expires: number; result: RouteResult };
 export class GoogleRoutes {
   private cache = new Map<string, CacheEntry>();
   private pending = new Map<string, Promise<RouteResult>>();
+  private generation = 0;
   constructor(
     private key: () => string | undefined,
     private fetcher: typeof fetch = fetch,
@@ -20,7 +22,9 @@ export class GoogleRoutes {
     return Boolean(this.key());
   }
   clear() {
+    this.generation++;
     this.cache.clear();
+    this.pending.clear();
   }
   async lookup(input: unknown): Promise<RouteResult> {
     const query = querySchema.parse(input);
@@ -33,17 +37,23 @@ export class GoogleRoutes {
     if (cached && cached.expires > Date.now()) return cached.result;
     const existing = this.pending.get(key);
     if (existing) return existing;
+    const generation = this.generation;
     const job = this.request(query)
       .then((result) => {
-        // Derived, session-only cache. Never store provider responses in canonical workspace.
-        this.cache.set(key, {
-          expires: Date.now() + (result.status === 'ok' ? 3600000 : 30000),
-          result,
-        });
+        if (generation === this.generation)
+          this.cache.set(key, {
+            expires:
+              result.status === 'ok'
+                ? result.fetchedAt! + ROUTE_CACHE_TTL
+                : Date.now() + ROUTE_FAILURE_TTL,
+            result,
+          });
         if (this.cache.size > 2000) this.cache.delete(this.cache.keys().next().value!);
         return result;
       })
-      .finally(() => this.pending.delete(key));
+      .finally(() => {
+        if (this.pending.get(key) === job) this.pending.delete(key);
+      });
     this.pending.set(key, job);
     return job;
   }
@@ -102,6 +112,7 @@ export class GoogleRoutes {
         minutes: Number.parseFloat(route.duration) / 60,
         distanceMeters: route.distanceMeters ?? null,
         source: 'google',
+        fetchedAt: Date.now(),
       };
     } catch {
       return {

@@ -69,18 +69,20 @@ export function NumberField({
   value,
   onChange,
   nullable = false,
+  placeholder,
 }: {
   label: string;
   value: number | null;
   onChange: (v: number | null) => void;
   nullable?: boolean;
+  placeholder?: string;
 }) {
   return (
     <TextField
       label={label}
       value={value === null ? '' : String(value)}
       type="number"
-      placeholder={nullable ? '无限制' : '0'}
+      placeholder={placeholder ?? (nullable ? '无限制' : '0')}
       onChange={(v) => {
         const n = v === '' && nullable ? null : Number(v);
         if (n === null || (Number.isFinite(n) && n >= 0)) onChange(n);

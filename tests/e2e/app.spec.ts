@@ -3,6 +3,7 @@ import { DateTime } from 'luxon';
 import { createWorkspace } from '../../src/domain/factory';
 import { emptyLocation, emptyMetadata, type ConcreteBlock } from '../../src/domain/schema';
 import { fromLocal, ms } from '../../src/domain/time';
+import { issueContextsWorkspace } from '../fixtures/issueContexts';
 async function savedWorkspace(page: Page) {
   await expect(page.locator('.save-status')).toHaveText('已保存到本机');
   return page.evaluate(async () => {
@@ -323,6 +324,34 @@ test.describe('配置与新建旅行', () => {
     await dialog.getByRole('button', { name: '取消', exact: true }).click();
     expect(await savedWorkspace(page)).toEqual(original);
   });
+});
+
+test('共同 Travel Edge 的冲突和详情不混入其他日期的 Option 组合', async ({ page }) => {
+  await page.route('**/api/routes', (request) =>
+    request.fulfill({
+      json: { status: 'ok', minutes: 5.5, distanceMeters: 800, source: 'browser-test' },
+    }),
+  );
+  const w = issueContextsWorkspace();
+  await page.goto('/');
+  await expect(page.locator('.save-status')).toHaveText('已保存到本机');
+  await page.locator('input[type="file"][accept=".zip,.json"]').setInputFiles({
+    name: 'issue-contexts.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(w)),
+  });
+  await expect(page.getByRole('heading', { name: w.trip.name })).toBeVisible();
+  await page.locator('.travel-edge[data-edge-key="airport>costco"]').click();
+  const panel = page.locator('.detail-panel');
+  await expect(panel.locator('.issue-item')).toHaveCount(1);
+  await expect(panel.locator('.issue-item')).toHaveText(
+    '冲突路程与额外耗时共需 16 分钟，当前仅有 15 分钟。',
+  );
+  await expect(panel.locator('.route-endpoints')).toContainText('Kahului Airport (OGG)');
+  await expect(panel.locator('.route-endpoints')).toContainText('Costco Wholesale');
+  await expect(panel).not.toContainText('午餐候选');
+  await expect(panel).not.toContainText('晚餐候选');
+  await expect(panel).not.toContainText('方案：');
 });
 
 test('Option 各方案及跨日内部路线独立可见、可点击，进出路线不互相覆盖', async ({ page }) => {

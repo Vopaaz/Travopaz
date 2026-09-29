@@ -1,6 +1,16 @@
 import { get, set } from 'idb-keyval';
 import JSZip from 'jszip';
 import { migrateWorkspace, type Workspace } from '../domain/schema';
+import {
+  emptyRouteCache,
+  parseRouteCache,
+  ROUTE_CACHE_FILE,
+  type RouteCache,
+} from '../domain/routeCache';
+export const loadBrowserRouteCache = async (id: string) =>
+  parseRouteCache(await get(`route-cache:${id}`));
+export const saveBrowserRouteCache = (id: string, cache: RouteCache) =>
+  set(`route-cache:${id}`, parseRouteCache(cache));
 export async function loadActive(): Promise<Workspace | null> {
   const id = await get<string>('active');
   if (!id) return null;
@@ -25,21 +35,23 @@ export const getBlob = (workspaceId: string, path: string) =>
 export async function makeBundle(
   w: Workspace,
   read: (path: string) => Promise<Blob>,
+  routeCache: RouteCache = emptyRouteCache(),
 ): Promise<Blob> {
   const zip = new JSZip();
   zip.file('workspace.json', JSON.stringify(w, null, 2));
+  zip.file(ROUTE_CACHE_FILE, JSON.stringify(parseRouteCache(routeCache), null, 2));
   for (const attachment of w.attachments)
     zip.file(attachment.path, await (await read(attachment.path)).arrayBuffer());
   return zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
 }
 export async function readBundle(
   file: File,
-): Promise<{ workspace: Workspace; blobs: Map<string, Blob> }> {
+): Promise<{ workspace: Workspace; blobs: Map<string, Blob>; routeCache: RouteCache }> {
   if (file.name.toLowerCase().endsWith('.json')) {
     const workspace = migrateWorkspace(JSON.parse(await file.text()));
     if (workspace.attachments.length)
       throw new Error('该 JSON 引用了附件，请导入包含附件的完整 Workspace ZIP。');
-    return { workspace, blobs: new Map() };
+    return { workspace, blobs: new Map(), routeCache: emptyRouteCache() };
   }
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const canonical = zip.file('workspace.json');
@@ -57,7 +69,16 @@ export async function readBundle(
     total += bytes.byteLength;
     blobs.set(attachment.path, new Blob([bytes], { type: attachment.mime }));
   }
-  return { workspace, blobs };
+  let routeCache = emptyRouteCache();
+  const cached = zip.file(ROUTE_CACHE_FILE);
+  if (cached) {
+    try {
+      routeCache = parseRouteCache(JSON.parse(await cached.async('string')));
+    } catch {
+      /* A damaged optional cache must not prevent recovery of the user's plan. */
+    }
+  }
+  return { workspace, blobs, routeCache };
 }
 export function download(name: string, blob: Blob) {
   const url = URL.createObjectURL(blob);

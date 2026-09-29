@@ -4,6 +4,15 @@ import path from 'node:path';
 import os from 'node:os';
 import { createDemo } from '../../src/domain/factory';
 import { spawn } from 'node:child_process';
+import { derive } from '../../src/domain/derive';
+import { locationQuery } from '../../src/domain/routing';
+import {
+  parseRouteCache,
+  routeCacheEntry,
+  type RouteCacheEntry,
+} from '../../src/domain/routeCache';
+import { makeBundle } from '../../src/storage/browser';
+import { routesWorkspace } from '../fixtures/routes';
 
 const xvfb =
   process.env.TRAVOPAZ_TEST_XVFB === '1'
@@ -141,14 +150,70 @@ try {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] });
   }, directory);
   const workspace = createDemo();
+  const fetchedAt = Date.now() - 13 * 86400000;
+  const entries: RouteCacheEntry[] = [];
+  const preview = derive(workspace, (origin, destination, mode) => {
+    const result = {
+      status: 'ok' as const,
+      minutes: 8,
+      distanceMeters: 800,
+      source: 'google',
+      fetchedAt,
+    };
+    entries.push(routeCacheEntry(locationQuery(origin), locationQuery(destination), mode, result)!);
+    return result;
+  });
+  const routeCache = parseRouteCache({ version: 1, entries });
+  const cachedEdge = preview.edges.find((e) => e.route.minutes === 8)!;
   const snapshot = await page.evaluate(
-    async (workspace) => window.desktop!.create(workspace, []),
-    workspace,
+    async ({ workspace, routeCache }) => window.desktop!.create(workspace, [], routeCache),
+    { workspace, routeCache },
   );
   if (!snapshot) throw new Error('创建本地工作区失败');
   await page.getByRole('button', { name: '工作区', exact: true }).click();
   await page.getByRole('button', { name: '打开本地文件夹', exact: true }).click();
   await expect(page.locator('.trip-kicker')).toContainText('本地文件夹');
+  await expect(
+    page.locator(`.travel-edge[data-edge-key="${cachedEdge.key}"]`).first(),
+  ).toContainText('8 分钟');
+  expect(
+    JSON.parse(await readFile(path.join(directory, 'route-cache.json'), 'utf8')).entries,
+  ).toEqual(routeCache.entries);
+  // Exercise the real renderer -> IPC -> sidecar write, with no Google request.
+  // Playwright routing does not intercept Electron's custom protocol handler.
+  const originalFetch = await page.evaluateHandle(() => window.fetch);
+  await page.evaluate((fetchedAt) => {
+    const original = window.fetch;
+    window.fetch = (input, options) =>
+      input === '/api/routes'
+        ? Promise.resolve(
+            new Response(
+              JSON.stringify({
+                status: 'ok',
+                minutes: 9,
+                distanceMeters: 800,
+                source: 'google',
+                fetchedAt,
+              }),
+              { headers: { 'Content-Type': 'application/json' } },
+            ),
+          )
+        : original.call(window, input, options);
+  }, fetchedAt);
+  await page.getByRole('button', { name: '路线未配置', exact: true }).click();
+  await expect(
+    page.locator(`.travel-edge[data-edge-key="${cachedEdge.key}"]`).first(),
+  ).toContainText('9 分钟');
+  await expect(page.locator('.save-status')).toHaveText('已保存到本机');
+  expect(
+    JSON.parse(await readFile(path.join(directory, 'route-cache.json'), 'utf8')).entries.every(
+      (e: RouteCacheEntry) => e.result.minutes === 9,
+    ),
+  ).toBe(true);
+  await page.evaluate((original) => {
+    window.fetch = original;
+  }, originalFetch);
+  await originalFetch.dispose();
   workspace.trip.name = '外部 AI 修改';
   const file = path.join(directory, 'workspace.json');
   await writeFile(file, JSON.stringify(workspace));
@@ -172,10 +237,24 @@ try {
   await settings.getByLabel('默认交通出发前缓冲 / 分钟').fill('140');
   await settings.getByRole('button', { name: '完成', exact: true }).click();
   await expect(page.locator('.save-status')).toHaveText('已保存到本机');
+  await page.locator(`.travel-edge[data-edge-key="${cachedEdge.key}"]`).first().click();
+  await page.getByLabel('额外耗时（buffer）/ 分钟', { exact: true }).fill('17');
+  await page.getByLabel('额外耗时（buffer）/ 分钟', { exact: true }).blur();
+  await expect(page.locator('.save-status')).toHaveText('已保存到本机');
+  expect(JSON.parse(await readFile(file, 'utf8')).edgeOverheadOverrides[cachedEdge.key]).toBe(17);
   await app!.close();
   page = await launch();
   await expect(page.getByRole('heading', { name: 'Electron 自动保存验证' })).toBeVisible();
   await expect(page.locator('.trip-kicker')).toContainText('本地文件夹');
+  await expect(
+    page.locator(`.travel-edge[data-edge-key="${cachedEdge.key}"]`).first(),
+  ).toContainText('9 分钟');
+  expect(
+    JSON.parse(await readFile(path.join(directory, 'route-cache.json'), 'utf8')).entries[0]
+      .fetchedAt,
+  ).toBe(fetchedAt);
+  await page.locator(`.travel-edge[data-edge-key="${cachedEdge.key}"]`).first().click();
+  await expect(page.getByLabel('额外耗时（buffer）/ 分钟', { exact: true })).toHaveValue('17');
   await page.getByRole('button', { name: '全局设置', exact: true }).click();
   await expect(
     page
@@ -208,8 +287,37 @@ try {
       .getByLabel('默认交通出发前缓冲 / 分钟'),
   ).toHaveValue('160');
   expect(JSON.parse(await readFile(file, 'utf8')).globalConfig.preBuffer).toBe(140);
+  await page
+    .getByRole('dialog', { name: '全局设置', exact: true })
+    .getByRole('button', { name: '完成', exact: true })
+    .click();
+  const browserWorkspace = routesWorkspace();
+  const browserCache = {
+    version: 1 as const,
+    entries: [
+      routeCacheEntry('cache-A', 'cache-B', 'WALK', {
+        status: 'ok',
+        minutes: 8,
+        distanceMeters: 800,
+        source: 'google',
+        fetchedAt,
+      })!,
+    ],
+  };
+  const bundle = await makeBundle(browserWorkspace, async () => new Blob(), browserCache);
+  await page.locator('input[type="file"][accept=".zip,.json"]').setInputFiles({
+    name: 'cache.zip',
+    mimeType: 'application/zip',
+    buffer: Buffer.from(await bundle.arrayBuffer()),
+  });
+  await expect(page.locator('.travel-edge[data-edge-key="A>B"]')).toContainText('8 分钟');
+  await expect(page.locator('.save-status')).toHaveText('已保存到本机');
+  await app!.close();
+  page = await launch();
+  await expect(page.getByRole('heading', { name: browserWorkspace.trip.name })).toBeVisible();
+  await expect(page.locator('.travel-edge[data-edge-key="A>B"]')).toContainText('8 分钟');
   console.log(
-    'Electron smoke passed: restart persistence (settings, draft, attachment), protocol API, local workspace reopen, workspace switching, watcher, invalid-file protection, recovery, autosave.',
+    'Electron smoke passed: restart persistence (settings, draft, attachment, browser and disk route caches), protocol API, local workspace reopen, workspace switching, watcher, invalid-file protection, recovery, autosave.',
   );
 } catch (error) {
   console.error(electronErrors);

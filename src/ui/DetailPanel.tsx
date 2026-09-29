@@ -38,6 +38,7 @@ import { MetadataFields } from './MetadataFields';
 import { TimezoneFields } from './TimezoneFields';
 import { PlanningConfigFields } from './PlanningConfigFields';
 import type { Focus } from './types';
+import { modeLabel } from '../domain/routing';
 
 const labels = {
   activity: '活动',
@@ -759,6 +760,7 @@ export function DetailPanel({
 }
 
 function EdgeFields({ edge, w, zone }: { edge: Edge; w: Workspace; zone: string }) {
+  const defaultOverhead = edge.mode === 'NONE' ? 0 : effectiveConfig(w).overhead[edge.mode];
   return (
     <>
       <div className="route-endpoints">
@@ -776,12 +778,47 @@ function EdgeFields({ edge, w, zone }: { edge: Edge; w: Workspace; zone: string 
             })
           }
         >
-          <option value="">使用默认推导（{edge.modeKnown ? edge.mode : '待确认'}）</option>
+          <option value="">
+            使用默认推导（{edge.modeKnown ? modeLabel[edge.mode] : '待确认'}）
+          </option>
+          <option value="NONE">无移动 NONE</option>
           <option value="WALK">步行 WALK</option>
           <option value="DRIVE">驾车 DRIVE</option>
           <option value="RIDESHARE">打车 RIDESHARE</option>
         </select>
       </Field>
+      <NumberField
+        key={edge.key}
+        label="额外耗时（buffer）/ 分钟"
+        value={w.edgeOverheadOverrides[edge.key] ?? null}
+        nullable
+        placeholder={
+          edge.modeKnown
+            ? `${edge.mode === 'NONE' ? '默认' : '旅行默认'}：${defaultOverhead} 分钟`
+            : '使用对应交通方式的默认值'
+        }
+        onChange={(value) =>
+          session.edit((d) => {
+            if (value === null) delete d.edgeOverheadOverrides[edge.key];
+            else d.edgeOverheadOverrides[edge.key] = value;
+          })
+        }
+      />
+      <p className="hint">
+        留空使用对应交通方式的旅行默认值（无移动默认 0）；填写 0 表示无需额外耗时。
+      </p>
+      {edge.overheadOverridden && (
+        <button
+          className="text-button"
+          onClick={() =>
+            session.edit((d) => {
+              delete d.edgeOverheadOverrides[edge.key];
+            })
+          }
+        >
+          恢复默认额外耗时
+        </button>
+      )}
       <dl className="metrics">
         <dt>路线耗时</dt>
         <dd>{formatDuration(edge.route.minutes)}</dd>
@@ -801,7 +838,7 @@ function EdgeFields({ edge, w, zone }: { edge: Edge; w: Workspace; zone: string 
       {edge.route.status !== 'ok' && <p className="inline-issue">{edge.route.message}</p>}
       {edge.context && <p className="hint">方案：{edge.context}</p>}
       <p className="hint">
-        相邻关系决定路线。手动交通方式会保留，直到你恢复默认推导。若相邻项目改变，将建立新路线。
+        相邻关系决定路线。手动交通方式与额外耗时会保留，直到你恢复默认值。若相邻项目改变，将建立新路线。
       </p>
     </>
   );

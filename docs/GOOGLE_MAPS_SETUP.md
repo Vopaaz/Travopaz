@@ -43,7 +43,13 @@ PORT=5173
 
 调用 [Compute Routes 官方端点](https://developers.google.com/maps/documentation/routes/compute_route_directions)，只请求 `routes.duration,routes.distanceMeters`。DRIVE 使用 `TRAFFIC_UNAWARE`，RIDESHARE 复用驾驶路线，WALK 不携带驾驶专用的 routingPreference。不请求实时拥堵或实时发车时刻。
 
-缓存仅用于当前本机服务与浏览器会话：成功结果最多 1 小时，失败结果短暂保留 30 秒以免重复请求。点击“重新查询路线”会清空缓存。缓存是 derived data，不随 canonical Workspace 保存。
+成功结果从实际获取时刻起缓存 14 天。缓存键为有方向的起点地址、终点地址和交通方式；地址去除首尾空格，没有地址时使用地点名称。WALK 单独缓存，DRIVE 与 RIDESHARE 共用；时间、活动 ID、Option ID、overhead 不属于缓存键。相同请求会合并，修改时间不会重复查询已缓存的路线。
+
+浏览器工作区按工作区 ID 存入 IndexedDB；文件工作区把缓存保存为与 `workspace.json` 同目录的 `route-cache.json`，采用临时文件加原子替换。Workspace ZIP 包含此文件，人类 HTML 和 AI Context 不包含缓存。刷新、重启、另存为、导入和导出不会刷新获取时间；过期、损坏或缺失的缓存会忽略并按需重新查询。旧工作区仍可正常打开。每个缓存最多保留 2000 条有效结果，优先保留较新的结果。
+
+缓存不属于 canonical 行程，也不参与撤销／重做。失败结果只在内存中保留 30 秒。点击“重新查询路线”会清除当前工作区持久化缓存及服务端内存缓存，然后重新查询。无移动（NONE）始终不查询 API，路线耗时为 0、overhead 默认 0，允许单独自定义 buffer；仅同址时一致。修改路段 buffer 会重新计算总耗时，但地址与交通方式不变时复用路线缓存。
+
+提供方使用限制：上述 14 天持久化是本应用按用户要求实现的缓存策略，不表示 Google 已授权缓存这些字段。[Routes API 政策](https://developers.google.com/maps/documentation/routes/policies)限制大部分返回内容的缓存；[服务专项条款 §19.3](https://cloud.google.com/maps-platform/terms/maps-service-terms#19.-routes-api)的 30 天例外针对经纬度，未明确包含路线耗时和距离。实际使用应依据你与 Google 的适用协议。
 
 - HTTP 403：检查项目结算、Routes API 是否启用、Key 的 API/IP restriction。
 - HTTP 429：检查配额与计费设置。

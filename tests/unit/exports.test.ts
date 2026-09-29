@@ -5,6 +5,22 @@ import { derive } from '../../src/domain/derive';
 import { emptyMetadata, uid } from '../../src/domain/schema';
 import { shiftTime } from '../../src/domain/time';
 import { aiContext, humanItinerary } from '../../src/storage/exports';
+import { routesWorkspace } from '../fixtures/routes';
+
+it('自定义 buffer 同步到 AI 和人类行程的总耗时', async () => {
+  const w = routesWorkspace();
+  w.edgeOverheadOverrides['A>B'] = 12;
+  const d = derive(w, () => ({ status: 'ok', minutes: 8, distanceMeters: 800, source: 'test' }));
+  const context = aiContext(w, d, w.trip.primaryTimezone);
+  expect(context.travelEdges.find((e) => e.key === 'A>B')).toMatchObject({
+    overhead: 12,
+    overheadOverridden: true,
+    effectiveMinutes: 20,
+  });
+  const bundle = await humanItinerary(w, d, w.trip.primaryTimezone, async () => new Blob());
+  const zip = await JSZip.loadAsync(await bundle.arrayBuffer());
+  expect(await zip.file('行程.html')!.async('string')).toContain('总耗时 20 分钟');
+});
 
 it('最终导出包含显示范围之外的用户项目、空 Option、转义内容和独立附件', async () => {
   const w = createDemo(),

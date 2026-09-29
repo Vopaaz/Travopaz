@@ -7,7 +7,11 @@ await mkdir('examples', { recursive: true });
 await writeFile(
   'schemas/workspace-v1.schema.json',
   JSON.stringify(
-    z.toJSONSchema(workspaceSchema, { unrepresentable: 'any', target: 'draft-2020-12' }),
+    z.toJSONSchema(workspaceSchema, {
+      unrepresentable: 'any',
+      target: 'draft-2020-12',
+      io: 'input',
+    }),
     null,
     2,
   ) + '\n',

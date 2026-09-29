@@ -70,7 +70,8 @@ export default function App() {
     [jumpTarget, setJumpTarget] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null),
     previousWorkspace = useRef('');
-  const { derived, busy: routingBusy, configured, refresh } = useDerived(w);
+  const { derived, busy: routingBusy, configured, refresh } = useDerived(state);
+  const saving = state.saving || state.cacheSaving;
   const displayZone = w.trip.timezones.includes(zone) ? zone : w.trip.primaryTimezone;
   useEffect(() => {
     void session.initialize();
@@ -116,14 +117,14 @@ export default function App() {
   }, [selected]);
   useEffect(() => {
     const beforeUnload = (e: BeforeUnloadEvent) => {
-      if (state.saving) {
+      if (saving) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', beforeUnload);
     return () => window.removeEventListener('beforeunload', beforeUnload);
-  }, [state.saving]);
+  }, [saving]);
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
     try {
@@ -176,7 +177,7 @@ export default function App() {
         <span className="header-caption">把期待，安放在旅途里。</span>
         <div className="header-actions">
           <span className={`save-status ${state.error ? 'error-text' : ''}`}>
-            {state.loading || state.saving ? (
+            {state.loading || saving ? (
               <LoaderCircle className="spin" size={13} />
             ) : state.error ? (
               <AlertTriangle size={13} />
@@ -187,7 +188,7 @@ export default function App() {
               ? '正在读取'
               : state.error
                 ? '保存需处理'
-                : state.saving
+                : saving
                   ? '正在保存'
                   : '已保存到本机'}
           </span>
@@ -240,9 +241,15 @@ export default function App() {
                 <button
                   onClick={() => {
                     void run(async () => {
+                      await session.flush();
+                      const current = session.getSnapshot();
                       download(
                         `${w.trip.name}.travopaz.zip`,
-                        await makeBundle(w, session.readAttachment),
+                        await makeBundle(
+                          current.workspace,
+                          session.readAttachment,
+                          current.routeCache,
+                        ),
                       );
                     });
                     setMenu(false);
@@ -304,7 +311,7 @@ export default function App() {
           if (file)
             void run(async () => {
               const bundle = await readBundle(file);
-              await session.replaceBrowser(bundle.workspace, bundle.blobs);
+              await session.replaceBrowser(bundle.workspace, bundle.blobs, bundle.routeCache);
               setMessage('工作区已导入，附件已复制到本机存储。');
             });
           e.target.value = '';

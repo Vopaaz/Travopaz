@@ -4,6 +4,9 @@
 
 ## 已确认
 
+- 路线成功结果按获取时间缓存 14 天，保存为工作区旁的 `route-cache.json`，随 Workspace 导入导出；人类与 AI Context 导出不携带此缓存。缓存更新不影响行程的撤销／重做。
+- Travel Edge 新增无移动（NONE）。同址时默认推导为无移动，路线耗时为 0、overhead 默认 0；手动选择无移动但前后地点不同时报告 consistency error。
+- 每条 Travel Edge 可单独设置非负的 buffer／overhead，未设置时使用当前旅行中对应交通方式的默认值（旅行设置优先，否则使用全局默认）。用户确认 NONE 也允许自定义 buffer，默认仍为 0。覆盖跟随相邻端点关系保存，切换交通方式时保留；清空时恢复该方式默认值。
 - 酒店／租车状态区间从开始 Boundary 的 **end** 到结束 Boundary 的 **start**；手续本身不计入持有状态。
 - Option 内使用绝对 Placement；整体拖动时所有 Variant 同步平移。
 - Option 没有独立 Placement 和可调整外框。外框覆盖全部内部项目，长度由这些项目推导；仅内部具体项目可 Resize。

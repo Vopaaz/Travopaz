@@ -4,6 +4,7 @@ import path from 'node:path';
 import { startServer } from '../server/http';
 import { DiskWorkspace } from './workspace';
 import { parseWorkspace, type Workspace } from '../src/domain/schema';
+import { emptyRouteCache, parseRouteCache, type RouteCache } from '../src/domain/routeCache';
 
 let win: BrowserWindow | null = null,
   disk: DiskWorkspace | null = null;
@@ -22,11 +23,12 @@ async function attach(
   directory: string,
   initialize?: Workspace,
   attachments: { path: string; data: number[] }[] = [],
+  routeCache: RouteCache = emptyRouteCache(),
 ) {
   const next = new DiskWorkspace(directory, (event) =>
     win?.webContents.send('workspace:changed', event),
   );
-  const snapshot = initialize ? await next.initialize(initialize) : await next.load();
+  const snapshot = initialize ? await next.initialize(initialize, routeCache) : await next.load();
   if (initialize)
     for (const a of attachments) await next.putAttachment(a.path, new Uint8Array(a.data));
   disk?.close();
@@ -97,18 +99,28 @@ app.whenReady().then(async () => {
   });
   handle(
     'workspace:create',
-    async (workspace: unknown, attachments: { path: string; data: number[] }[]) => {
+    async (
+      workspace: unknown,
+      attachments: { path: string; data: number[] }[],
+      routeCache: unknown,
+    ) => {
       const w = parseWorkspace(workspace);
       const selection = await dialog.showOpenDialog(win!, {
         title: '选择空文件夹存放 Workspace',
         properties: ['openDirectory', 'createDirectory'],
       });
-      return selection.canceled ? null : attach(selection.filePaths[0], w, attachments);
+      return selection.canceled
+        ? null
+        : attach(selection.filePaths[0], w, attachments, parseRouteCache(routeCache));
     },
   );
   handle('workspace:save', (workspace: unknown, revision: string) => {
     if (!disk) throw new Error('尚未打开本地工作区');
     return disk.save(parseWorkspace(workspace), revision);
+  });
+  handle('workspace:route-cache', (routeCache: unknown, directory: string) => {
+    if (!disk || disk.directory !== directory) throw new Error('路线缓存所属工作区已关闭');
+    return disk.saveRouteCache(parseRouteCache(routeCache));
   });
   handle('attachment:put', (relative: string, data: number[]) => {
     if (!disk) throw new Error('尚未打开本地工作区');

@@ -4,6 +4,12 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { migrateWorkspace, parseWorkspace, type Workspace } from '../src/domain/schema';
 import type { DiskEvent, DiskSnapshot } from '../src/storage/bridge';
+import {
+  emptyRouteCache,
+  parseRouteCache,
+  ROUTE_CACHE_FILE,
+  type RouteCache,
+} from '../src/domain/routeCache';
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 export class DiskWorkspace {
   private watcher?: FSWatcher;
@@ -22,14 +28,40 @@ export class DiskWorkspace {
     const workspace = migrateWorkspace(JSON.parse(text));
     this.lastRevision = hash(text);
     this.invalid = false;
-    return { workspace, revision: this.lastRevision, directory: this.directory };
+    return {
+      workspace,
+      revision: this.lastRevision,
+      directory: this.directory,
+      routeCache: await this.loadRouteCache(),
+    };
   }
-  async initialize(workspace: Workspace) {
+  async loadRouteCache(): Promise<RouteCache> {
+    try {
+      return parseRouteCache(
+        JSON.parse(await readFile(path.join(this.directory, ROUTE_CACHE_FILE), 'utf8')),
+      );
+    } catch (error) {
+      if (error instanceof SyntaxError || (error as NodeJS.ErrnoException).code === 'ENOENT')
+        return emptyRouteCache();
+      throw error;
+    }
+  }
+  async saveRouteCache(cache: RouteCache) {
+    const temp = path.join(this.directory, `.route-cache-${crypto.randomUUID()}.tmp`);
+    try {
+      await writeFile(temp, JSON.stringify(parseRouteCache(cache), null, 2) + '\n', { flag: 'wx' });
+      await rename(temp, path.join(this.directory, ROUTE_CACHE_FILE));
+    } finally {
+      await unlink(temp).catch(() => {});
+    }
+  }
+  async initialize(workspace: Workspace, routeCache = emptyRouteCache()) {
     await mkdir(this.directory, { recursive: true });
     await mkdir(path.join(this.directory, 'attachments'), { recursive: true });
     await writeFile(this.file(), JSON.stringify(parseWorkspace(workspace), null, 2) + '\n', {
       flag: 'wx',
     });
+    await this.saveRouteCache(routeCache);
     return this.load();
   }
   async save(workspace: Workspace, revision: string): Promise<DiskSnapshot> {
@@ -54,7 +86,12 @@ export class DiskWorkspace {
     }
     await rename(temp, this.file());
     this.lastRevision = hash(text);
-    return { workspace, revision: this.lastRevision, directory: this.directory };
+    return {
+      workspace,
+      revision: this.lastRevision,
+      directory: this.directory,
+      routeCache: await this.loadRouteCache(),
+    };
   }
   startWatching() {
     this.watcher = watch(this.directory, (_event, name) => {

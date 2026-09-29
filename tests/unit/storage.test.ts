@@ -5,6 +5,7 @@ import path from 'node:path';
 import { DiskWorkspace } from '../../electron/workspace';
 import { createWorkspace } from '../../src/domain/factory';
 import type { DiskEvent } from '../../src/storage/bridge';
+import { ROUTE_CACHE_TTL, type RouteCacheEntry } from '../../src/domain/routeCache';
 const dirs: string[] = [];
 const directory = async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'travopaz-test-'));
@@ -15,6 +16,35 @@ afterEach(async () => {
   for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
 });
 describe('文件工作区', () => {
+  it('缓存与工作区一起保存，重开可用；缓存更新不改 canonical 文件或触发其冲突保护', async () => {
+    const dir = await directory(),
+      store = new DiskWorkspace(dir),
+      first = await store.initialize(createWorkspace());
+    const file = path.join(dir, 'workspace.json'),
+      canonical = await readFile(file, 'utf8');
+    const entry: RouteCacheEntry = {
+      origin: 'A',
+      destination: 'B',
+      mode: 'DRIVE',
+      fetchedAt: Date.now() - 13 * 86400000,
+      result: { status: 'ok', minutes: 10, distanceMeters: 800, source: 'google' },
+    };
+    await store.saveRouteCache({ version: 1, entries: [entry] });
+    const reopened = await new DiskWorkspace(dir).load();
+    expect(reopened.routeCache.entries).toEqual([entry]);
+    expect(reopened.revision).toBe(first.revision);
+    expect(await readFile(file, 'utf8')).toBe(canonical);
+    first.workspace.trip.name = '仍可正常保存';
+    await store.save(first.workspace, first.revision);
+    await store.saveRouteCache({
+      version: 1,
+      entries: [{ ...entry, fetchedAt: Date.now() - ROUTE_CACHE_TTL }],
+    });
+    expect((await store.load()).routeCache.entries).toEqual([]);
+    await writeFile(path.join(dir, 'route-cache.json'), '{broken');
+    expect((await store.load()).workspace.trip.name).toBe('仍可正常保存');
+    expect((await store.load()).routeCache.entries).toEqual([]);
+  });
   it('外部无效文件保留原样，旧 UI 不能写回，修复后可恢复', async () => {
     const dir = await directory(),
       events: DiskEvent[] = [],
