@@ -203,7 +203,7 @@ try {
   await page.getByRole('button', { name: '路线未配置', exact: true }).click();
   await expect(
     page.locator(`.travel-edge[data-edge-key="${cachedEdge.key}"]`).first(),
-  ).toContainText('9 分钟');
+  ).toHaveAttribute('title', /路线 9 分钟/);
   await expect(page.locator('.save-status')).toHaveText('已保存到本机');
   expect(
     JSON.parse(await readFile(path.join(directory, 'route-cache.json'), 'utf8')).entries.every(
@@ -248,7 +248,7 @@ try {
   await expect(page.locator('.trip-kicker')).toContainText('本地文件夹');
   await expect(
     page.locator(`.travel-edge[data-edge-key="${cachedEdge.key}"]`).first(),
-  ).toContainText('9 分钟');
+  ).toHaveAttribute('title', /路线 9 分钟/);
   expect(
     JSON.parse(await readFile(path.join(directory, 'route-cache.json'), 'utf8')).entries[0]
       .fetchedAt,

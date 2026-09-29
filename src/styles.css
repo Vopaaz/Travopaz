@@ -825,6 +825,7 @@ button {
 }
 .timeline-block {
   position: absolute;
+  container: timeline-block / size;
   padding: 10px 11px;
   border-radius: 6px;
   background: #eaf2e4;
@@ -873,7 +874,7 @@ button {
   display: flex;
   align-items: center;
   gap: 7px;
-  line-height: 1.5;
+  line-height: 18px;
   font-size: 11px;
   min-width: 0;
 }
@@ -897,6 +898,7 @@ button {
 }
 .block-time {
   font-size: 10px;
+  line-height: 14px;
   margin-top: 5px;
   font-variant-numeric: tabular-nums;
   opacity: 0.82;
@@ -908,6 +910,7 @@ button {
 }
 .block-location {
   font-size: 10px;
+  line-height: 14px;
   opacity: 0.59;
   margin-top: 8px;
   overflow: hidden;
@@ -919,6 +922,23 @@ button {
   bottom: 4px;
   left: calc(50% - 8px);
   opacity: 0.32;
+}
+/* Query the content box: padding and borders differ in Option columns and wide windows.
+   Title: 18px; time: 5 + 14px; location: 8 + 14px; grip needs another 20px. */
+@container timeline-block (height < 79px) {
+  .block-grip {
+    display: none;
+  }
+}
+@container timeline-block (height < 59px) {
+  .block-location {
+    display: none;
+  }
+}
+@container timeline-block (height < 37px) {
+  .block-time {
+    display: none;
+  }
 }
 .timeline-block.tiny {
   padding: 0 7px;
@@ -1135,7 +1155,6 @@ button {
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 3px;
   color: #a2ad96;
   font-size: 9px;
   border-left: 1px dashed #d9dfd1;
@@ -1143,28 +1162,46 @@ button {
   pointer-events: auto;
   text-align: left;
   z-index: 4;
-  max-height: 75px;
   background: #fffdfbcc;
   overflow: hidden;
 }
 .travel-edge.packed {
   padding: 3px;
 }
-.travel-edge.packed > span {
+.travel-edge.packed .edge-mode {
   flex-wrap: wrap;
   gap: 2px;
 }
-.travel-edge.packed > span > svg:first-child {
+.travel-edge.packed .edge-mode > svg:first-child {
   display: none;
 }
-.travel-edge > span {
+.edge-content {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 100%;
+  gap: 3px;
+}
+.edge-mode {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 .travel-edge small {
   font-size: 8px;
+  line-height: 1.4;
   opacity: 0.9;
+}
+.travel-edge .edge-duration,
+.travel-edge .edge-slot {
+  display: block;
+  flex-shrink: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.edge-customization {
+  display: inline-flex;
+  opacity: 0.8;
 }
 .travel-edge:hover {
   color: #688658;
@@ -1240,7 +1277,7 @@ button {
   padding-left: 5px;
   background: #f7f3fa;
 }
-.variant-edge-lane .travel-edge > span {
+.variant-edge-lane .edge-mode {
   flex-wrap: wrap;
 }
 .variant-label {

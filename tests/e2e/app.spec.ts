@@ -424,6 +424,8 @@ test('Option 各方案及跨日内部路线独立可见、可点击，进出路�
       await expect(edge).toHaveCount(1);
       await edge.scrollIntoViewIfNeeded();
       await expect(edge).toContainText('10 分钟');
+      await expect(edge.locator('.edge-duration')).toHaveText('所需 10 分钟');
+      await expect(edge.locator('.edge-slot')).toHaveText('时段 1 小时');
       await edge.click(); // Fails if another alternative covers it.
       await expect(panel.locator('.route-endpoints')).toContainText(
         `${id} ${index === 1 ? '博物馆' : '早餐'}`,
@@ -461,6 +463,22 @@ test('Option 各方案及跨日内部路线独立可见、可点击，进出路�
   expect(saved.edgeOverrides).toEqual({ 'B-1>B-2': 'RIDESHARE' });
   expect(saved.blocks).toEqual(w.blocks);
   await page.screenshot({ path: 'test-results/option-travel-edges.png', fullPage: true });
+  for (const width of [1440, 1100]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect
+      .poll(() =>
+        page.locator('.travel-edge').evaluateAll((cards) =>
+          cards
+            .filter((card) => {
+              const box = card.getBoundingClientRect();
+              const content = card.querySelector('.edge-content')!.getBoundingClientRect();
+              return content.top < box.top || content.bottom > box.bottom;
+            })
+            .map((card) => card.getAttribute('data-edge-key')),
+        ),
+      )
+      .toEqual([]);
+  }
   await page.getByRole('button', { name: '全局设置', exact: true }).click();
   const settings = page.getByRole('dialog', { name: '全局设置', exact: true });
   await settings
@@ -474,6 +492,7 @@ test('Option 各方案及跨日内部路线独立可见、可点击，进出路�
     );
     await edge.click();
     await expect(edge).toContainText('未知');
+    await expect(edge.locator('.edge-slot')).toHaveText('时段 1 小时');
     await expect(panel.locator('.route-endpoints')).toContainText(`${id} 博物馆`);
   }
 });

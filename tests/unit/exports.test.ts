@@ -22,6 +22,24 @@ it('自定义 buffer 同步到 AI 和人类行程的总耗时', async () => {
   expect(await zip.file('行程.html')!.async('string')).toContain('总耗时 20 分钟');
 });
 
+it.each([
+  [20.2, 30, false],
+  [20.5, 31, true],
+] as const)(
+  '人类行程对路线 %s 分钟的总耗时与冲突使用相同取整',
+  async (minutes, total, conflict) => {
+    const w = routesWorkspace();
+    w.edgeOverrides['A>B'] = 'RIDESHARE';
+    w.edgeOverheadOverrides['A>B'] = 10;
+    const d = derive(w, () => ({ status: 'ok', minutes, distanceMeters: 800, source: 'test' }));
+    const bundle = await humanItinerary(w, d, w.trip.primaryTimezone, async () => new Blob());
+    const zip = await JSZip.loadAsync(await bundle.arrayBuffer());
+    const html = await zip.file('行程.html')!.async('string');
+    expect(html).toContain(`总耗时 ${total} 分钟`);
+    expect(html.includes('路程与额外耗时共需 31 分钟，当前仅有 30 分钟。')).toBe(conflict);
+  },
+);
+
 it('最终导出包含显示范围之外的用户项目、空 Option、转义内容和独立附件', async () => {
   const w = createDemo(),
     attachmentId = uid();

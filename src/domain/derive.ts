@@ -10,6 +10,7 @@ import {
   type OptionBlock,
 } from './schema';
 import { ms } from './time';
+import { edgeTiming } from './edgeTiming';
 import { bounds, blockTitle } from './operations';
 import { ScenarioContexts, type Scenario } from './scenarioContexts';
 import {
@@ -545,14 +546,11 @@ export function derive(w: Workspace, lookup: RouteLookup = () => unknownRoute())
           scenario,
           'warning',
         );
-      if (
-        effectiveMinutes !== null &&
-        edge.availableMinutes !== null &&
-        effectiveMinutes > edge.availableMinutes
-      )
+      const timing = edgeTiming(edge);
+      if (timing.insufficient)
         addIssue(
           'travel_short',
-          `路程与额外耗时共需 ${Math.ceil(effectiveMinutes)} 分钟，当前仅有 ${Math.floor(edge.availableMinutes)} 分钟。`,
+          `路程与额外耗时共需 ${timing.requiredText}，当前仅有 ${timing.availableText}。`,
           targets,
           scenario,
         );

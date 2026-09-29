@@ -21,6 +21,7 @@ import {
   Plane,
   Route,
   Flag,
+  SlidersHorizontal,
 } from 'lucide-react';
 import type { Block, ConcreteBlock, Workspace } from '../domain/schema';
 import { at, daysBetween, formatDuration, formatTime, ms } from '../domain/time';
@@ -37,6 +38,7 @@ import type { Derived, DerivedBlock, Edge } from '../domain/derive';
 import { session } from '../storage/session';
 import type { Focus } from './types';
 import { modeLabel } from '../domain/routing';
+import { edgeTiming, formatTravelDuration } from '../domain/edgeTiming';
 
 const OPTION_HEADER_SPACE = 25;
 const ENDPOINT_HEIGHT = 30;
@@ -511,7 +513,7 @@ export function Timeline({
               setFocus({ kind: 'block', id: block.id });
             }
           }}
-          title={`${blockTitle(display, block)} · ${formatTime(span.start, zone, 'MM/dd HH:mm')}–${formatTime(span.end, zone, 'MM/dd HH:mm')}\n拖动移动；拖动上下边缘调整；Alt 精确到分钟`}
+          title={`${blockTitle(display, block)} · ${formatTime(span.start, zone, 'MM/dd HH:mm')}–${formatTime(span.end, zone, 'MM/dd HH:mm')}\n${location || '地点尚未填写'}\n拖动移动；拖动上下边缘调整；Alt 精确到分钟`}
         >
           <div
             className="resize-handle top"
@@ -528,14 +530,12 @@ export function Timeline({
               </span>
             )}
           </div>
-          {height >= 35 && (
-            <div className="block-time">
-              {formatTime(span.start, zone)} – {formatTime(span.end, zone)}{' '}
-              <span>· {formatDuration((span.end - span.start) / 60000)}</span>
-            </div>
-          )}
-          {height >= 62 && <div className="block-location">{location || '地点尚未填写'}</div>}
-          {height >= 90 && <GripHorizontal className="block-grip" size={16} />}
+          <div className="block-time">
+            {formatTime(span.start, zone)} – {formatTime(span.end, zone)}{' '}
+            <span>· {formatDuration((span.end - span.start) / 60000)}</span>
+          </div>
+          <div className="block-location">{location || '地点尚未填写'}</div>
+          <GripHorizontal className="block-grip" size={16} />
           <div
             className="resize-handle bottom"
             data-testid={`resize-end-${block.id}`}
@@ -922,12 +922,41 @@ function TravelEdges({
   errorCount: (id: string) => number;
   setFocus: (focus: Focus) => void;
 }) {
+  const contents = useRef(new Map<string, HTMLDivElement>());
+  const [labelHeights, setLabelHeights] = useState<Record<string, number>>({});
+  // Wrapping depends on both the viewport and the number of concurrent routes.
+  // Measure the natural text height so packing includes every visible line.
+  useLayoutEffect(() => {
+    const measure = () => {
+      const heights = Object.fromEntries(
+        [...contents.current].map(([id, element]) => [
+          id,
+          Math.ceil(element.getBoundingClientRect().height) + 8,
+        ]),
+      );
+      setLabelHeights((previous) =>
+        Object.keys(previous).length === Object.keys(heights).length &&
+        Object.entries(heights).every(([id, height]) => previous[id] === height)
+          ? previous
+          : heights,
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    for (const element of contents.current.values()) observer.observe(element);
+    return () => observer.disconnect();
+  });
   const visible = edges.flatMap((edge, index) => {
     const time = edge.departure ?? edge.arrival;
     if (time === null || time < dayStart || time >= dayEnd) return [];
     const top = ((time - dayStart) / 60000) * zoom;
-    const height = Math.min(75, Math.max(40, (edge.effectiveMinutes ?? 0) * zoom));
-    return [{ edge, id: String(index), top, height }];
+    const id = String(index);
+    const height = Math.max(
+      52,
+      Math.min(75, (edge.effectiveMinutes ?? 0) * zoom),
+      labelHeights[id] ?? 0,
+    );
+    return [{ edge, id, top, height }];
   });
   // Pack the visible labels, not just route durations: unknown and zero-minute routes still need room.
   const layouts = layoutIntervals(
@@ -936,6 +965,15 @@ function TravelEdges({
   return visible.map(({ edge, id, top, height }) => {
     const error = errorCount(edge.id);
     const layout = layouts.get(id)!;
+    const customization = [
+      edge.overridden ? '已指定交通方式' : '',
+      edge.overheadOverridden ? '已自定义 buffer' : '',
+    ]
+      .filter(Boolean)
+      .join('；');
+    const timing = edgeTiming(edge);
+    const required = `所需 ${timing.requiredText}（路线 ${formatTravelDuration(edge.route.minutes)} + buffer ${formatTravelDuration(edge.overhead)}）`;
+    const slot = timing.slotText;
     return (
       <button
         key={`${edge.id}-${id}`}
@@ -950,24 +988,44 @@ function TravelEdges({
         }}
         onClick={() => setFocus({ kind: 'edge', id: edge.id })}
         aria-label={`Travel Edge：${edge.fromTitle} → ${edge.toTitle}`}
-        title={`${edge.fromTitle} → ${edge.toTitle}\n路线 ${formatDuration(edge.route.minutes)} + 额外 ${edge.overhead} 分钟\n${edge.context}`}
+        title={[
+          `${edge.fromTitle} → ${edge.toTitle}`,
+          required,
+          `时段 ${slot}`,
+          customization,
+          edge.context,
+        ]
+          .filter(Boolean)
+          .join('\n')}
       >
-        <span>
-          {edge.mode === 'NONE' ? (
-            <MapPin size={12} />
-          ) : edge.mode === 'WALK' ? (
-            <Footprints size={12} />
-          ) : (
-            <Car size={12} />
-          )}
-          {edge.modeKnown ? modeLabel[edge.mode] : '方式待确认'}
-          {error > 0 && <AlertTriangle size={12} />}
-        </span>
-        <small>
-          {formatDuration(edge.route.minutes)}
-          {edge.overhead ? ` + ${edge.overhead} 分` : ''}
-          {edge.overridden || edge.overheadOverridden ? ' · 手动' : ''}
-        </small>
+        <div
+          className="edge-content"
+          ref={(element) => {
+            if (element) contents.current.set(id, element);
+            else contents.current.delete(id);
+          }}
+        >
+          <span className="edge-mode">
+            {edge.mode === 'NONE' ? (
+              <MapPin size={12} />
+            ) : edge.mode === 'WALK' ? (
+              <Footprints size={12} />
+            ) : (
+              <Car size={12} />
+            )}
+            {edge.modeKnown ? modeLabel[edge.mode] : '方式待确认'}
+            {customization && (
+              <span className="edge-customization" title={customization} aria-label={customization}>
+                <SlidersHorizontal size={10} />
+              </span>
+            )}
+            {error > 0 && <AlertTriangle size={12} />}
+          </span>
+          <small className="edge-duration" title={required}>
+            所需 {timing.requiredText}
+          </small>
+          <small className="edge-slot">时段 {slot}</small>
+        </div>
       </button>
     );
   });

@@ -39,6 +39,7 @@ import { TimezoneFields } from './TimezoneFields';
 import { PlanningConfigFields } from './PlanningConfigFields';
 import type { Focus } from './types';
 import { modeLabel } from '../domain/routing';
+import { edgeTiming, formatTravelDuration } from '../domain/edgeTiming';
 
 const labels = {
   activity: '活动',
@@ -761,6 +762,7 @@ export function DetailPanel({
 
 function EdgeFields({ edge, w, zone }: { edge: Edge; w: Workspace; zone: string }) {
   const defaultOverhead = edge.mode === 'NONE' ? 0 : effectiveConfig(w).overhead[edge.mode];
+  const timing = edgeTiming(edge);
   return (
     <>
       <div className="route-endpoints">
@@ -821,11 +823,13 @@ function EdgeFields({ edge, w, zone }: { edge: Edge; w: Workspace; zone: string 
       )}
       <dl className="metrics">
         <dt>路线耗时</dt>
-        <dd>{formatDuration(edge.route.minutes)}</dd>
+        <dd>{formatTravelDuration(edge.route.minutes)}</dd>
         <dt>额外耗时</dt>
-        <dd>{formatDuration(edge.overhead)}</dd>
+        <dd>{formatTravelDuration(edge.overhead)}</dd>
         <dt>总耗时</dt>
-        <dd>{formatDuration(edge.effectiveMinutes)}</dd>
+        <dd>{timing.requiredText}</dd>
+        <dt>时段长度</dt>
+        <dd>{timing.slotText}</dd>
         <dt>出发</dt>
         <dd>
           {edge.departure === null ? '未知' : formatTime(edge.departure, zone, 'MM/dd HH:mm')}

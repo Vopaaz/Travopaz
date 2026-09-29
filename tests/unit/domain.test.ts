@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DateTime } from 'luxon';
 import { createWorkspace, placeCandidate } from '../../src/domain/factory';
 import { derive } from '../../src/domain/derive';
+import { edgeTiming } from '../../src/domain/edgeTiming';
 import { bounds, moveBlocks, unwrapOption, wrapOption } from '../../src/domain/operations';
 import {
   emptyLocation,
@@ -81,6 +82,67 @@ function status(w: Workspace, kind: 'hotel' | 'rentalCar', start: number, end: n
   return { id, pickup: boundary('start', start), dropoff: boundary('end', end) };
 }
 const codes = (w: Workspace, lookup = route) => derive(w, lookup).issues.map((i) => i.code);
+
+describe('路线耗时与冲突共用时间语义', () => {
+  it.each([
+    [20.2, 10, 30, false, '30 分钟', '30 分钟'],
+    [20.1, 10.2, 30.3, false, '30 分钟', '30 分钟'],
+    [20.5 - 1 / 60000, 10, 30, false, '30 分钟', '30 分钟'],
+    [20.5, 10, 30, true, '31 分钟', '30 分钟'],
+    [20.5 + 1 / 60000, 10, 30, true, '31 分钟', '30 分钟'],
+    [20.5, 10, 30.5 - 1 / 60000, true, '31 分钟', '30 分钟'],
+    [20.5, 10, 30.5, false, '31 分钟', '31 分钟'],
+    [20.8, 10, 30.5, false, '31 分钟', '31 分钟'],
+    [20.3, 10.3, 30, true, '31 分钟', '30 分钟'],
+    [59.5, 0, 60, false, '1 小时', '1 小时'],
+    [59 + 59 / 60, 1 / 60, 60, false, '1 小时', '1 小时'],
+  ] as const)(
+    '路线 %s + buffer %s，空档 %s 的显示与检查一致',
+    (minutes, buffer, gap, conflict, requiredText, availableText) => {
+      const w = workspace();
+      const a = activity(w, 'A', 9, 10);
+      const b = activity(w, 'B', 11, 12);
+      b.start = shiftTime(a.end, gap);
+      const key = `${a.id}>${b.id}`;
+      w.edgeOverrides[key] = 'WALK';
+      w.edgeOverheadOverrides[key] = buffer;
+      const d = derive(w, () => ({ status: 'ok', minutes, distanceMeters: 800, source: 'test' }));
+      const edge = d.edges.find((e) => e.key === key)!;
+      expect(edgeTiming(edge)).toMatchObject({
+        requiredText,
+        availableText,
+        slotText: availableText,
+        insufficient: conflict,
+      });
+      const issue = d.issues.find(
+        (i) => i.code === 'travel_short' && i.targetIds.includes(edge.id),
+      );
+      expect(Boolean(issue)).toBe(conflict);
+      if (conflict)
+        expect(issue?.message).toBe(
+          `路程与额外耗时共需 ${requiredText}，当前仅有 ${availableText}。`,
+        );
+    },
+  );
+  it('推导路段的时段也取整，未知路线仍然未知', () => {
+    const w = workspace();
+    const a = activity(w, 'A', 9, 10);
+    w.edgeOverrides[`trip-start>${a.id}`] = 'WALK';
+    w.edgeOverheadOverrides[`trip-start>${a.id}`] = 20.5;
+    const incoming = (d: ReturnType<typeof derive>) =>
+      d.edges.find((e) => e.fromId === 'trip-start')!;
+    expect(edgeTiming(incoming(derive(w, route)))).toMatchObject({
+      requiredText: '31 分钟',
+      slotText: '31 分钟（推导）',
+      insufficient: false,
+    });
+    expect(edgeTiming(incoming(derive(w)))).toMatchObject({
+      requiredText: '未知',
+      slotText: '未知（推导）',
+      insufficient: false,
+    });
+  });
+});
 
 describe('用户拥有 Placement', () => {
   it('derive 不修改任何 canonical 数据；interval 与 duration 独立检查', () => {
