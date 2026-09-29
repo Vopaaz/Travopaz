@@ -1,0 +1,436 @@
+{
+  "schemaVersion": 1,
+  "id": "e0134999-9ab7-4d8d-aebc-9b64ba6c9226",
+  "globalConfig": {
+    "home": {
+      "name": "",
+      "address": "",
+      "googleMapsUrl": "",
+      "appleMapsUrl": ""
+    },
+    "preBuffer": 90,
+    "postBuffer": 30,
+    "overhead": {
+      "WALK": 0,
+      "DRIVE": 10,
+      "RIDESHARE": 8
+    },
+    "walkingThreshold": 20,
+    "routingProvider": "google",
+    "navigation": "google"
+  },
+  "trip": {
+    "name": "京都 · 慢游三日",
+    "startLocation": {
+      "name": "京都站",
+      "address": "京都府京都市下京区東塩小路釜殿町",
+      "googleMapsUrl": "",
+      "appleMapsUrl": ""
+    },
+    "endLocation": {
+      "name": "京都站",
+      "address": "京都府京都市下京区東塩小路釜殿町",
+      "googleMapsUrl": "",
+      "appleMapsUrl": ""
+    },
+    "displayStart": {
+      "instant": "2026-10-11T15:00:00.000Z",
+      "timezone": "Asia/Tokyo"
+    },
+    "displayEnd": {
+      "instant": "2026-10-14T14:59:00.000Z",
+      "timezone": "Asia/Tokyo"
+    },
+    "timezones": [
+      "Asia/Tokyo",
+      "Asia/Shanghai",
+      "America/Los_Angeles"
+    ],
+    "primaryTimezone": "Asia/Tokyo",
+    "overnightBreaks": [
+      {
+        "id": "1b1ae859-65ae-4dd6-a833-799168f79bc2",
+        "time": {
+          "instant": "2026-10-12T18:30:00.000Z",
+          "timezone": "Asia/Tokyo"
+        }
+      },
+      {
+        "id": "82660bc1-f762-46d1-b9be-bde53aa8ba6e",
+        "time": {
+          "instant": "2026-10-13T18:30:00.000Z",
+          "timezone": "Asia/Tokyo"
+        }
+      }
+    ],
+    "config": {}
+  },
+  "candidates": [
+    {
+      "id": "626e7ac9-5e59-4648-ab4e-6ec76caa90ff",
+      "kind": "boundary",
+      "title": "办理酒店入住",
+      "role": "start",
+      "statusId": "aef994b7-491c-41de-b395-846847d0fc04",
+      "location": {
+        "name": "京都格兰比亚酒店",
+        "address": "京都府京都市下京区烏丸通塩小路下ル JR京都駅中央口",
+        "googleMapsUrl": "",
+        "appleMapsUrl": ""
+      },
+      "defaultStart": {
+        "instant": "2026-10-12T05:00:00.000Z",
+        "timezone": "Asia/Tokyo"
+      },
+      "defaultEnd": {
+        "instant": "2026-10-12T05:30:00.000Z",
+        "timezone": "Asia/Tokyo"
+      },
+      "metadata": {
+        "notes": "",
+        "links": [],
+        "attachmentIds": [],
+        "tags": [],
+        "reservation": ""
+      }
+    },
+    {
+      "id": "3f430362-531f-4e98-b877-bdd6c9c0f6b8",
+      "kind": "boundary",
+      "title": "办理酒店退房",
+      "role": "end",
+      "statusId": "aef994b7-491c-41de-b395-846847d0fc04",
+      "location": {
+        "name": "京都格兰比亚酒店",
+        "address": "京都府京都市下京区烏丸通塩小路下ル JR京都駅中央口",
+        "googleMapsUrl": "",
+        "appleMapsUrl": ""
+      },
+      "defaultStart": {
+        "instant": "2026-10-14T01:00:00.000Z",
+        "timezone": "Asia/Tokyo"
+      },
+      "defaultEnd": {
+        "instant": "2026-10-14T01:20:00.000Z",
+        "timezone": "Asia/Tokyo"
+      },
+      "metadata": {
+        "notes": "",
+        "links": [],
+        "attachmentIds": [],
+        "tags": [],
+        "reservation": ""
+      }
+    },
+    {
+      "id": "60c574a1-a53a-418d-a292-78373d952644",
+      "kind": "activity",
+      "title": "锦市场 · 寻找京都的味道",
+      "location": {
+        "name": "锦市场",
+        "address": "京都市中京区錦小路通",
+        "googleMapsUrl": "",
+        "appleMapsUrl": ""
+      },
+      "metadata": {
+        "notes": "",
+        "links": [],
+        "attachmentIds": [],
+        "tags": [
+          "京都"
+        ],
+        "reservation": ""
+      },
+      "constraints": {
+        "intervals": [],
+        "minMinutes": null,
+        "maxMinutes": null
+      }
+    },
+    {
+      "id": "db480082-7770-4330-ac04-f614aeb18453",
+      "kind": "activity",
+      "title": "清水寺与二年坂",
+      "location": {
+        "name": "清水寺",
+        "address": "京都市東山区清水1丁目294",
+        "googleMapsUrl": "",
+        "appleMapsUrl": ""
+      },
+      "metadata": {
+        "notes": "",
+        "links": [],
+        "attachmentIds": [],
+        "tags": [
+          "京都"
+        ],
+        "reservation": ""
+      },
+      "constraints": {
+        "intervals": [],
+        "minMinutes": 90,
+        "maxMinutes": null
+      }
+    },
+    {
+      "id": "27f64330-9a61-4fe7-ab75-d45a96348a31",
+      "kind": "activity",
+      "title": "祇园 · 傍晚散步",
+      "location": {
+        "name": "祇园白川",
+        "address": "京都市東山区末吉町",
+        "googleMapsUrl": "",
+        "appleMapsUrl": ""
+      },
+      "metadata": {
+        "notes": "",
+        "links": [],
+        "attachmentIds": [],
+        "tags": [
+          "京都"
+        ],
+        "reservation": ""
+      },
+      "constraints": {
+        "intervals": [],
+        "minMinutes": null,
+        "maxMinutes": null
+      }
+    },
+    {
+      "id": "cde47007-4fd5-45da-807d-7a1548dcc06e",
+      "kind": "activity",
+      "title": "伏见稻荷 · 千本鸟居",
+      "location": {
+        "name": "伏见稻荷大社",
+        "address": "京都市伏見区深草薮之内町68",
+        "googleMapsUrl": "",
+        "appleMapsUrl": ""
+      },
+      "metadata": {
+        "notes": "",
+        "links": [],
+        "attachmentIds": [],
+        "tags": [
+          "京都"
+        ],
+        "reservation": ""
+      },
+      "constraints": {
+        "intervals": [],
+        "minMinutes": null,
+        "maxMinutes": null
+      }
+    },
+    {
+      "id": "b728be9f-a4d4-4034-a59a-c0817add3311",
+      "kind": "activity",
+      "title": "鸭川边的午后",
+      "location": {
+        "name": "鸭川三角洲",
+        "address": "京都市左京区下鴨宮河町",
+        "googleMapsUrl": "",
+        "appleMapsUrl": ""
+      },
+      "metadata": {
+        "notes": "",
+        "links": [],
+        "attachmentIds": [],
+        "tags": [
+          "京都"
+        ],
+        "reservation": ""
+      },
+      "constraints": {
+        "intervals": [],
+        "minMinutes": null,
+        "maxMinutes": null
+      }
+    },
+    {
+      "id": "fb848a96-e721-401e-8689-ec9b847baa53",
+      "kind": "activity",
+      "title": "哲学之道",
+      "location": {
+        "name": "哲学之道",
+        "address": "京都市左京区浄土寺石橋町",
+        "googleMapsUrl": "",
+        "appleMapsUrl": ""
+      },
+      "metadata": {
+        "notes": "",
+        "links": [],
+        "attachmentIds": [],
+        "tags": [
+          "京都"
+        ],
+        "reservation": ""
+      },
+      "constraints": {
+        "intervals": [],
+        "minMinutes": null,
+        "maxMinutes": null
+      }
+    },
+    {
+      "id": "8efa355c-f864-4c06-8a92-ffea0d0647ac",
+      "kind": "activity",
+      "title": "岚山竹林",
+      "location": {
+        "name": "岚山竹林小径",
+        "address": "京都市右京区嵯峨天龍寺芒ノ馬場町",
+        "googleMapsUrl": "",
+        "appleMapsUrl": ""
+      },
+      "metadata": {
+        "notes": "",
+        "links": [],
+        "attachmentIds": [],
+        "tags": [
+          "京都"
+        ],
+        "reservation": ""
+      },
+      "constraints": {
+        "intervals": [],
+        "minMinutes": null,
+        "maxMinutes": null
+      }
+    }
+  ],
+  "statuses": [
+    {
+      "id": "aef994b7-491c-41de-b395-846847d0fc04",
+      "kind": "hotel",
+      "title": "京都格兰比亚酒店",
+      "location": {
+        "name": "京都格兰比亚酒店",
+        "address": "京都府京都市下京区烏丸通塩小路下ル JR京都駅中央口",
+        "googleMapsUrl": "",
+        "appleMapsUrl": ""
+      },
+      "metadata": {
+        "notes": "这是演示数据，可自由修改或新建工作区。",
+        "links": [],
+        "attachmentIds": [],
+        "tags": [],
+        "reservation": "示例预订 · 2 晚"
+      }
+    }
+  ],
+  "blocks": [
+    {
+      "id": "015deaa6-46df-4cad-ba23-daf8c3d3bec2",
+      "kind": "candidate",
+      "candidateId": "626e7ac9-5e59-4648-ab4e-6ec76caa90ff",
+      "start": {
+        "instant": "2026-10-12T05:00:00.000Z",
+        "timezone": "Asia/Tokyo"
+      },
+      "end": {
+        "instant": "2026-10-12T05:30:00.000Z",
+        "timezone": "Asia/Tokyo"
+      }
+    },
+    {
+      "id": "634b78e8-5d43-4d44-800c-4f24e8e9546c",
+      "kind": "candidate",
+      "candidateId": "3f430362-531f-4e98-b877-bdd6c9c0f6b8",
+      "start": {
+        "instant": "2026-10-14T01:00:00.000Z",
+        "timezone": "Asia/Tokyo"
+      },
+      "end": {
+        "instant": "2026-10-14T01:20:00.000Z",
+        "timezone": "Asia/Tokyo"
+      }
+    },
+    {
+      "id": "0088db93-485a-4861-bbb2-c5517d41f4a7",
+      "kind": "candidate",
+      "candidateId": "60c574a1-a53a-418d-a292-78373d952644",
+      "start": {
+        "instant": "2026-10-12T02:00:00.000Z",
+        "timezone": "Asia/Tokyo"
+      },
+      "end": {
+        "instant": "2026-10-12T03:30:00.000Z",
+        "timezone": "Asia/Tokyo"
+      }
+    },
+    {
+      "id": "b814df24-4f2e-4d40-a344-33326d542645",
+      "kind": "candidate",
+      "candidateId": "db480082-7770-4330-ac04-f614aeb18453",
+      "start": {
+        "instant": "2026-10-12T06:30:00.000Z",
+        "timezone": "Asia/Tokyo"
+      },
+      "end": {
+        "instant": "2026-10-12T09:00:00.000Z",
+        "timezone": "Asia/Tokyo"
+      }
+    },
+    {
+      "id": "9fad29a2-db20-4226-acb7-727262e2a944",
+      "kind": "candidate",
+      "candidateId": "27f64330-9a61-4fe7-ab75-d45a96348a31",
+      "start": {
+        "instant": "2026-10-12T09:30:00.000Z",
+        "timezone": "Asia/Tokyo"
+      },
+      "end": {
+        "instant": "2026-10-12T10:30:00.000Z",
+        "timezone": "Asia/Tokyo"
+      }
+    },
+    {
+      "id": "6de3ecf5-78a8-49ad-a77d-66870c305f4b",
+      "kind": "candidate",
+      "candidateId": "cde47007-4fd5-45da-807d-7a1548dcc06e",
+      "start": {
+        "instant": "2026-10-13T00:00:00.000Z",
+        "timezone": "Asia/Tokyo"
+      },
+      "end": {
+        "instant": "2026-10-13T02:30:00.000Z",
+        "timezone": "Asia/Tokyo"
+      }
+    },
+    {
+      "id": "67785631-a633-4761-a283-bf912fb286be",
+      "kind": "candidate",
+      "candidateId": "b728be9f-a4d4-4034-a59a-c0817add3311",
+      "start": {
+        "instant": "2026-10-13T05:00:00.000Z",
+        "timezone": "Asia/Tokyo"
+      },
+      "end": {
+        "instant": "2026-10-13T07:00:00.000Z",
+        "timezone": "Asia/Tokyo"
+      }
+    },
+    {
+      "id": "1cef46c7-6f76-449f-8725-b1531e3742d5",
+      "kind": "hotelRest",
+      "title": "酒店早餐与休息",
+      "start": {
+        "instant": "2026-10-13T23:00:00.000Z",
+        "timezone": "Asia/Tokyo"
+      },
+      "end": {
+        "instant": "2026-10-14T00:30:00.000Z",
+        "timezone": "Asia/Tokyo"
+      },
+      "metadata": {
+        "notes": "",
+        "links": [],
+        "attachmentIds": [],
+        "tags": [],
+        "reservation": ""
+      }
+    }
+  ],
+  "edgeOverrides": {},
+  "attachments": []
+}

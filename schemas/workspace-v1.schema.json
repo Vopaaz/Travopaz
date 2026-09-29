@@ -1,0 +1,1435 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trip": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "startLocation": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "address": {
+              "type": "string"
+            },
+            "googleMapsUrl": {
+              "type": "string"
+            },
+            "appleMapsUrl": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "address",
+            "googleMapsUrl",
+            "appleMapsUrl"
+          ],
+          "additionalProperties": false
+        },
+        "endLocation": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "address": {
+              "type": "string"
+            },
+            "googleMapsUrl": {
+              "type": "string"
+            },
+            "appleMapsUrl": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "address",
+            "googleMapsUrl",
+            "appleMapsUrl"
+          ],
+          "additionalProperties": false
+        },
+        "displayStart": {
+          "type": "object",
+          "properties": {
+            "instant": {
+              "type": "string"
+            },
+            "timezone": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "instant",
+            "timezone"
+          ],
+          "additionalProperties": false
+        },
+        "displayEnd": {
+          "type": "object",
+          "properties": {
+            "instant": {
+              "type": "string"
+            },
+            "timezone": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "instant",
+            "timezone"
+          ],
+          "additionalProperties": false
+        },
+        "timezones": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "primaryTimezone": {
+          "type": "string"
+        },
+        "overnightBreaks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "time": {
+                "type": "object",
+                "properties": {
+                  "instant": {
+                    "type": "string"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "instant",
+                  "timezone"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "time"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "config": {
+          "type": "object",
+          "properties": {
+            "preBuffer": {
+              "type": "number",
+              "minimum": 0
+            },
+            "postBuffer": {
+              "type": "number",
+              "minimum": 0
+            },
+            "overhead": {
+              "type": "object",
+              "properties": {
+                "WALK": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "DRIVE": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "RIDESHARE": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "WALK",
+                "DRIVE",
+                "RIDESHARE"
+              ],
+              "additionalProperties": false
+            },
+            "walkingThreshold": {
+              "type": "number",
+              "minimum": 0
+            },
+            "routingProvider": {
+              "type": "string",
+              "enum": [
+                "google",
+                "unavailable"
+              ]
+            },
+            "navigation": {
+              "type": "string",
+              "enum": [
+                "google",
+                "apple"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "name",
+        "startLocation",
+        "endLocation",
+        "displayStart",
+        "displayEnd",
+        "timezones",
+        "primaryTimezone",
+        "overnightBreaks",
+        "config"
+      ],
+      "additionalProperties": false
+    },
+    "globalConfig": {
+      "type": "object",
+      "properties": {
+        "home": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "address": {
+              "type": "string"
+            },
+            "googleMapsUrl": {
+              "type": "string"
+            },
+            "appleMapsUrl": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "address",
+            "googleMapsUrl",
+            "appleMapsUrl"
+          ],
+          "additionalProperties": false
+        },
+        "preBuffer": {
+          "type": "number",
+          "minimum": 0
+        },
+        "postBuffer": {
+          "type": "number",
+          "minimum": 0
+        },
+        "overhead": {
+          "type": "object",
+          "properties": {
+            "WALK": {
+              "type": "number",
+              "minimum": 0
+            },
+            "DRIVE": {
+              "type": "number",
+              "minimum": 0
+            },
+            "RIDESHARE": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "WALK",
+            "DRIVE",
+            "RIDESHARE"
+          ],
+          "additionalProperties": false
+        },
+        "walkingThreshold": {
+          "type": "number",
+          "minimum": 0
+        },
+        "routingProvider": {
+          "type": "string",
+          "enum": [
+            "google",
+            "unavailable"
+          ]
+        },
+        "navigation": {
+          "type": "string",
+          "enum": [
+            "google",
+            "apple"
+          ]
+        }
+      },
+      "required": [
+        "home",
+        "preBuffer",
+        "postBuffer",
+        "overhead",
+        "walkingThreshold",
+        "routingProvider",
+        "navigation"
+      ],
+      "additionalProperties": false
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "title": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "object",
+                "properties": {
+                  "notes": {
+                    "type": "string"
+                  },
+                  "links": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "url"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "attachmentIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "reservation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "notes",
+                  "links",
+                  "attachmentIds",
+                  "tags",
+                  "reservation"
+                ],
+                "additionalProperties": false
+              },
+              "kind": {
+                "type": "string",
+                "const": "activity"
+              },
+              "location": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "string"
+                  },
+                  "googleMapsUrl": {
+                    "type": "string"
+                  },
+                  "appleMapsUrl": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "address",
+                  "googleMapsUrl",
+                  "appleMapsUrl"
+                ],
+                "additionalProperties": false
+              },
+              "constraints": {
+                "type": "object",
+                "properties": {
+                  "intervals": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "relation": {
+                          "type": "string",
+                          "enum": [
+                            "within",
+                            "covers"
+                          ]
+                        },
+                        "start": {
+                          "type": "object",
+                          "properties": {
+                            "instant": {
+                              "type": "string"
+                            },
+                            "timezone": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "instant",
+                            "timezone"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "end": {
+                          "type": "object",
+                          "properties": {
+                            "instant": {
+                              "type": "string"
+                            },
+                            "timezone": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "instant",
+                            "timezone"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "relation",
+                        "start",
+                        "end"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "minMinutes": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "maxMinutes": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "intervals",
+                  "minMinutes",
+                  "maxMinutes"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "metadata",
+              "kind",
+              "location",
+              "constraints"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "title": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "object",
+                "properties": {
+                  "notes": {
+                    "type": "string"
+                  },
+                  "links": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "url"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "attachmentIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "reservation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "notes",
+                  "links",
+                  "attachmentIds",
+                  "tags",
+                  "reservation"
+                ],
+                "additionalProperties": false
+              },
+              "kind": {
+                "type": "string",
+                "const": "transport"
+              },
+              "subtype": {
+                "type": "string",
+                "enum": [
+                  "flight",
+                  "train",
+                  "ferry",
+                  "bus",
+                  "other"
+                ]
+              },
+              "origin": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "string"
+                  },
+                  "googleMapsUrl": {
+                    "type": "string"
+                  },
+                  "appleMapsUrl": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "address",
+                  "googleMapsUrl",
+                  "appleMapsUrl"
+                ],
+                "additionalProperties": false
+              },
+              "destination": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "string"
+                  },
+                  "googleMapsUrl": {
+                    "type": "string"
+                  },
+                  "appleMapsUrl": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "address",
+                  "googleMapsUrl",
+                  "appleMapsUrl"
+                ],
+                "additionalProperties": false
+              },
+              "departure": {
+                "type": "object",
+                "properties": {
+                  "instant": {
+                    "type": "string"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "instant",
+                  "timezone"
+                ],
+                "additionalProperties": false
+              },
+              "arrival": {
+                "type": "object",
+                "properties": {
+                  "instant": {
+                    "type": "string"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "instant",
+                  "timezone"
+                ],
+                "additionalProperties": false
+              },
+              "preBuffer": {
+                "type": "number",
+                "minimum": 0
+              },
+              "postBuffer": {
+                "type": "number",
+                "minimum": 0
+              },
+              "operator": {
+                "type": "string"
+              },
+              "serviceNumber": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "metadata",
+              "kind",
+              "subtype",
+              "origin",
+              "destination",
+              "departure",
+              "arrival",
+              "preBuffer",
+              "postBuffer",
+              "operator",
+              "serviceNumber"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "title": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "object",
+                "properties": {
+                  "notes": {
+                    "type": "string"
+                  },
+                  "links": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "url"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "attachmentIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "reservation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "notes",
+                  "links",
+                  "attachmentIds",
+                  "tags",
+                  "reservation"
+                ],
+                "additionalProperties": false
+              },
+              "kind": {
+                "type": "string",
+                "const": "boundary"
+              },
+              "statusId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "start",
+                  "end"
+                ]
+              },
+              "location": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "string"
+                  },
+                  "googleMapsUrl": {
+                    "type": "string"
+                  },
+                  "appleMapsUrl": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "address",
+                  "googleMapsUrl",
+                  "appleMapsUrl"
+                ],
+                "additionalProperties": false
+              },
+              "defaultStart": {
+                "type": "object",
+                "properties": {
+                  "instant": {
+                    "type": "string"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "instant",
+                  "timezone"
+                ],
+                "additionalProperties": false
+              },
+              "defaultEnd": {
+                "type": "object",
+                "properties": {
+                  "instant": {
+                    "type": "string"
+                  },
+                  "timezone": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "instant",
+                  "timezone"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "metadata",
+              "kind",
+              "statusId",
+              "role",
+              "location",
+              "defaultStart",
+              "defaultEnd"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "statuses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "hotel",
+              "rentalCar"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "location": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "address": {
+                "type": "string"
+              },
+              "googleMapsUrl": {
+                "type": "string"
+              },
+              "appleMapsUrl": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "address",
+              "googleMapsUrl",
+              "appleMapsUrl"
+            ],
+            "additionalProperties": false
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "notes": {
+                "type": "string"
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "attachmentIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "reservation": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "notes",
+              "links",
+              "attachmentIds",
+              "tags",
+              "reservation"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "location",
+          "metadata"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "start": {
+                    "type": "object",
+                    "properties": {
+                      "instant": {
+                        "type": "string"
+                      },
+                      "timezone": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "instant",
+                      "timezone"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "end": {
+                    "type": "object",
+                    "properties": {
+                      "instant": {
+                        "type": "string"
+                      },
+                      "timezone": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "instant",
+                      "timezone"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "candidate"
+                  },
+                  "candidateId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "id",
+                  "start",
+                  "end",
+                  "kind",
+                  "candidateId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "start": {
+                    "type": "object",
+                    "properties": {
+                      "instant": {
+                        "type": "string"
+                      },
+                      "timezone": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "instant",
+                      "timezone"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "end": {
+                    "type": "object",
+                    "properties": {
+                      "instant": {
+                        "type": "string"
+                      },
+                      "timezone": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "instant",
+                      "timezone"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "hotelRest"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "properties": {
+                      "notes": {
+                        "type": "string"
+                      },
+                      "links": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "url"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "attachmentIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "tags": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "reservation": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "notes",
+                      "links",
+                      "attachmentIds",
+                      "tags",
+                      "reservation"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "start",
+                  "end",
+                  "kind",
+                  "title",
+                  "metadata"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "type": "string",
+                "const": "option"
+              },
+              "title": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "object",
+                "properties": {
+                  "notes": {
+                    "type": "string"
+                  },
+                  "links": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "url"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "attachmentIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "reservation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "notes",
+                  "links",
+                  "attachmentIds",
+                  "tags",
+                  "reservation"
+                ],
+                "additionalProperties": false
+              },
+              "variants": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "blocks": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "start": {
+                                "type": "object",
+                                "properties": {
+                                  "instant": {
+                                    "type": "string"
+                                  },
+                                  "timezone": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "instant",
+                                  "timezone"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "end": {
+                                "type": "object",
+                                "properties": {
+                                  "instant": {
+                                    "type": "string"
+                                  },
+                                  "timezone": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "instant",
+                                  "timezone"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "kind": {
+                                "type": "string",
+                                "const": "candidate"
+                              },
+                              "candidateId": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "start",
+                              "end",
+                              "kind",
+                              "candidateId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "start": {
+                                "type": "object",
+                                "properties": {
+                                  "instant": {
+                                    "type": "string"
+                                  },
+                                  "timezone": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "instant",
+                                  "timezone"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "end": {
+                                "type": "object",
+                                "properties": {
+                                  "instant": {
+                                    "type": "string"
+                                  },
+                                  "timezone": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "instant",
+                                  "timezone"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "kind": {
+                                "type": "string",
+                                "const": "hotelRest"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "properties": {
+                                  "notes": {
+                                    "type": "string"
+                                  },
+                                  "links": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "url": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "label",
+                                        "url"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "attachmentIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    }
+                                  },
+                                  "tags": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "reservation": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "notes",
+                                  "links",
+                                  "attachmentIds",
+                                  "tags",
+                                  "reservation"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "start",
+                              "end",
+                              "kind",
+                              "title",
+                              "metadata"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "blocks"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "title",
+              "metadata",
+              "variants"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "edgeOverrides": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "WALK",
+          "DRIVE",
+          "RIDESHARE"
+        ]
+      }
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^attachments\\/[a-zA-Z0-9_-]+$"
+          },
+          "size": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "mime",
+          "path",
+          "size"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "trip",
+    "globalConfig",
+    "candidates",
+    "statuses",
+    "blocks",
+    "edgeOverrides",
+    "attachments"
+  ],
+  "additionalProperties": false
+}

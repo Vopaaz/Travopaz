@@ -1,0 +1,5 @@
+node_modules
+dist
+dist-electron
+package-lock.json
+travel_planner_requirements_zh_v1_1.md
