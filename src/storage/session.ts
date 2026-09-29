@@ -144,6 +144,8 @@ export class WorkspaceSession {
     await this.flush();
     for (const [path, blob] of blobs) await browser.putBlob(workspace.id, path, blob);
     await browser.saveBrowser(workspace);
+    // Desktop must remember this switch too, or a previous disk workspace wins on the next launch.
+    await window.desktop?.useBrowser();
     this.epoch++;
     this.blocked = false;
     this.past = [];

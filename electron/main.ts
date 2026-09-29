@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { startServer } from '../server/http';
@@ -7,7 +7,16 @@ import { parseWorkspace, type Workspace } from '../src/domain/schema';
 
 let win: BrowserWindow | null = null,
   disk: DiskWorkspace | null = null;
-let url = '';
+const url = 'travopaz://app/';
+// A stable, standard origin keeps IndexedDB available across restarts, regardless of the API port.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'travopaz',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true },
+  },
+]);
+const profile = app.commandLine.getSwitchValue('user-data-dir');
+if (profile) app.setPath('userData', path.resolve(profile));
 const preferencePath = () => path.join(app.getPath('userData'), 'recent-workspace.json');
 async function attach(
   directory: string,
@@ -45,7 +54,20 @@ app.whenReady().then(async () => {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
   }
   const server = await startServer({ root, port: 0 });
-  url = `http://127.0.0.1:${server.port}/`;
+  const backend = `http://127.0.0.1:${server.port}`;
+  protocol.handle('travopaz', async (request) => {
+    const target = new URL(request.url);
+    if (target.host !== 'app') return new Response('未知应用地址', { status: 404 });
+    // Only forward to this application's loopback server. Do not forward the custom Origin/Host.
+    return net.fetch(`${backend}${target.pathname}${target.search}`, {
+      method: request.method,
+      headers: { 'Content-Type': request.headers.get('Content-Type') ?? 'application/json' },
+      body:
+        request.method === 'GET' || request.method === 'HEAD'
+          ? undefined
+          : await request.arrayBuffer(),
+    });
+  });
   app.on('will-quit', () => {
     disk?.close();
     server.server.close();
@@ -59,12 +81,19 @@ app.whenReady().then(async () => {
   });
   handle('workspace:reopen', async () => {
     try {
-      const prefs = JSON.parse(await readFile(preferencePath(), 'utf8')) as { directory: string };
-      return attach(prefs.directory);
+      const prefs = JSON.parse(await readFile(preferencePath(), 'utf8')) as {
+        directory: string | null;
+      };
+      return prefs.directory ? attach(prefs.directory) : null;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
       throw e;
     }
+  });
+  handle('workspace:use-browser', async () => {
+    await writeFile(preferencePath(), JSON.stringify({ directory: null }, null, 2));
+    disk?.close();
+    disk = null;
   });
   handle(
     'workspace:create',

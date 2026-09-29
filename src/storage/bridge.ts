@@ -4,6 +4,7 @@ export type DiskEvent = { snapshot: DiskSnapshot } | { error: string };
 export interface DesktopBridge {
   open(): Promise<DiskSnapshot | null>;
   reopen(): Promise<DiskSnapshot | null>;
+  useBrowser(): Promise<void>;
   create(
     workspace: Workspace,
     attachments: { path: string; data: number[] }[],

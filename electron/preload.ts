@@ -3,6 +3,7 @@ import type { DesktopBridge } from '../src/storage/bridge';
 const bridge: DesktopBridge = {
   open: () => ipcRenderer.invoke('workspace:open'),
   reopen: () => ipcRenderer.invoke('workspace:reopen'),
+  useBrowser: () => ipcRenderer.invoke('workspace:use-browser'),
   create: (workspace, attachments) =>
     ipcRenderer.invoke('workspace:create', workspace, attachments),
   save: (workspace, revision) => ipcRenderer.invoke('workspace:save', workspace, revision),
